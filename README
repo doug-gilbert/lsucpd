@@ -1,0 +1,82 @@
+
+For a description of this utility see:
+  https://sg.danny.cz/scsi/lsscsi.html
+or
+  https://doug-gilbert.github.io/scsi/lsscsi.html
+
+Here is a summary:
+
+lsscsi
+------
+The lsscsi utility lists information about SCSI devices in Linux. Using SCSI
+terminology, lsscsi lists SCSI logical units (or SCSI targets when the
+'--transport' option is given). The default action is to produce one line of
+output for each SCSI device currently attached to the system. In version 0.30
+of this utility, support was added to list NVMe namespaces (under SCSI
+devices(LUs)) and NVMe controllers (under SCSI hosts).
+
+Note that ATA/SATA devices and USB Mass Storage (and UAPS) devices use the
+SCSI subsystem in Linux thus also appear in lsscsi output.
+
+By default its output is plain text (ASCII). With the --json option it can
+produce JSON output instead.
+
+lsscsi overlaps with the lsblk utility but concentrates on the devices
+themselves. Also lsscsi lists storage related devices such as enclosures
+and tape drives.
+
+The "man" page (lsscsi.8) in this package may also be useful.
+
+ls_name_value
+-------------
+The ls_name_value script (bash rather than C binary) is designed to show
+filenames and their corresponding ASCII contents (values) up to two
+directory levels deep. It produces plain text output. 
+It is designed for data-mining in the sysfs pseudo file system but may
+also be useful with other pseudo file systems (e.g. devfs and procfs).
+
+
+Building package
+================
+Installation instructions are in the INSTALL file.
+
+Various options can be given to the ./configure script. Those
+specific to this package are:
+
+  --disable-nvme-supp     remove all or most NVMe code
+  --disable-fast-lebe     use generic little-endian/big-endian code instead
+  --enable-debug          Turn on debugging
+
+The first option may be required for old Linux systems that pre-date
+NVMe support in the kernel.
+
+In almost all cases "fast-lebe" should be okay. The problem is that there
+are two (major) ways of representing integers that require greater than 8
+bits to represent. The most logical (for humans) is called "big endian"
+where the high(er/est) byte appears before (i.e. at a lower address) the
+low(er-est) byte. Networking and SCSI use the "big endian" representation.
+Intel have always maintained that the "little endian" representation is
+more computationally efficient and judging from most modern CPU designs,
+the industry seems to agree with them. Some CPUs, such as those from ARM,
+can run in either big or little endian mode.  That said, there are few
+examples of Linux or Unix using big endian ARM: Gentoo (Linux) and NetBSD
+have support for big endian ARM. NVMe, a project started by Intel, uses
+little endian (but not exclusively as some unique identifiers specify big
+endian (e.g. IEEE NAA)). So its a mess, that won't be sorted any time soon.
+There is another, more subtle issue, associated with the alignment of the
+integer representation in memory that is best addressed at the same time
+as "endian-ness". Along the "wire" (transport medium) it is often best to
+pack integers so there are no fill characters (bytes) between them. If
+the --disable-fast-lebe is needed, then probably there will be other
+serious issues.
+
+The build sequence is now:
+  ./autogen.sh ; ./configure ; make ; make install
+or
+  ./bootstrap ; ./configure ; make ; make install
+
+Note that the final 'make install' will usually require root permissions
+and will place binaries in the /usr/local/bin directory.
+
+Douglas Gilbert
+30th May 2023

@@ -1,0 +1,5 @@
+Linux utility for listing USB Power Delivery information.
+
+Changelog for pre-release lsupd-0.90 [20230611] [svn: r2]
+  - build framewaork copying lsscsi repository
+

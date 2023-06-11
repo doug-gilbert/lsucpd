@@ -1,0 +1,650 @@
+.TH LSSCSI "8" "May 2023" "lsscsi\-0.33" LSSCSI
+.SH NAME
+lsscsi \- list SCSI devices (or hosts), list NVMe devices
+.SH SYNOPSIS
+.B lsscsi
+[\fI\-\-brief\fR] [\fI\-\-classic\fR] [\fI\-\-controllers\fR]
+[\fI\-\-device\fR] [\fI\-\-generic\fR] [\fI\-\-help\fR] [\fI\-\-hosts\fR]
+[\fI\-\-json[=JO]\fR] [\fI\-\-js\-file=JFN\fR] [\fI\-\-kname\fR]
+[\fI\-\-list\fR] [\fI\-\-long\fR] [\fI\-\-long\-unit\fR] [\fI\-\-lunhex\fR]
+[\fI\-\-no\-nvme\fR] [\fI\-\-pdt\fR] [\fI\-\-protection\fR]
+[\fI\-\-protmode\fR] [\fI\-\-scsi_id\fR] [\fI\-\-size\fR]
+[\fI\-\-sysfsroot=PATH\fR] [\fI\-\-sz\-lbs] [\fI\-\-transport\fR]
+[\fI\-\-unit\fR] [\fI\-\-verbose\fR] [\fI\-\-version\fR] [\fI\-\-wwn\fR]
+[\fIH:C:T:L\fR]
+.SH DESCRIPTION
+.\" Add any additional description here
+Uses information in sysfs (Linux kernel series 2.6 and later) to list SCSI
+devices (or hosts) currently attached to the system. Many non\-SCSI storage
+devices (but not all) used the SCSI subsystem in Linux. In lsscsi version
+0.30 support was added to list NVMe devices and controllers.
+.PP
+The term "device" is wonderfully vague with one possible definition being
+the "thing" at the other end of the wire (from the CPU or host computer).
+In SCSI the "thing" at the other end of the wire is called the target
+which contains one or more "logical units" (LUs). A LU is a sequence of
+equally sized blocks addressed by a "logical block address" (LBA) starting
+at 0. In NVMe the "thing" at the other end of the wire is a "NVMe device"
+which contains one or more namespaces.
+.PP
+By default, this utility is in single_line_per_LU/namespace mode, each line
+starts with a 4 element tuple surrounded by square brackets. For SCSI devices
+the first element ('H') is the host number, the second element ('C') is the
+controller number, the third element ('T') is the target number and the final
+element is the Logical Unit Number ('L' or LUN). All four are integers.
+For NVMe namespaces see two paragraphs down. When the \fI\-\-hosts\fR option
+is given for SCSI devices the tuple is reduced to one element: the host
+number.
+.PP
+If a \fIH:C:T:L\fR tuple is given as an argument on the command line then
+it acts as a filter and only devices that match it are listed. The colons
+don't have to be present, and '\-', '*', '?' or missing components at the
+end are interpreted as wildcards. The default is '*:*:*:*' which means to
+match devices (i.e.  LU or namespaces). Any filter string using '*' of '?'
+should be surrounded by single or double quotes to stop shell expansions.
+If '\-' is used as a wildcard then the whole filter tuple should be prefixed
+by '\-\- ' to tell this utility there are no more options on the command
+line to be interpreted. The use of '\-\- ' like that is standard Unix
+command line practice. A leading '[' and trailing ']' are permitted (
+e.g. '[1:0:0]' matches all LUNs on 1:0:0). May also be used to filter
+\fI\-\-hosts\fR in which case only the \fIH\fR is active and may be either
+a number or in the form "host<n>" where <n> is a host number.
+.PP
+For NVMe devices and controllers almost all of the previous paragraph
+applies. The main difference is that the letter "N" appears in
+the 'H' (first) position. The 'C' position for NVMe is the controller's
+Linux generated "char" device's minor number which is the first number
+that appears in a typical NVMe controller name, for example: "/dev/nvme2".
+The 'T' position for NVMe is the "CNTLID" value. The final 'L' position
+is the NVMe namespace identifier which is typically a sequential value
+starting at 1. The leading explicit "N" for NVMe devices is converted
+internally into a large value (32,767) that should not interfere with any
+Linux generated SCSI host number; it also means that the numeric sort
+used to show hosts (controllers) and devices (LUs or namespaces) will
+always place NVMe devices and controllers after those that use the SCSI
+subsystem. To filter using a \fIH:C:T:L\fR argument for NVMe controllers,
+"hostN", "hostN:<num>", "N" or "N:<num>" may be used; when no "<num>" is
+given, only NVMe controllers will be listed (i.e. it lists no SCSI
+hosts (HBAs)).
+.PP
+By default in this utility device node names (e.g. "/dev/sda"
+or "/dev/root_disk") are obtained by noting the major and minor numbers for
+the listed device obtained from sysfs (e.g. the contents
+of "/sys/block/sda/dev") and then looking for a match in the "/dev"
+directory. This "match by major and minor" will allow devices that have been
+given a different name by udev (for example) to be correctly reported by
+this utility.
+.PP
+In some situations it may be useful to see the device node name that
+Linux would produce by default, so the \fI\-\-kname\fR option is provided.
+An example of where this may be useful is kernel error logs which tend to
+report disk error messages using the disk's default kernel name.
+.SH OPTIONS
+Arguments to long options are mandatory for short options as well. The options
+are arranged in alphabetical order based on the long option name. Hyphenated
+long options can also take underscore, and vice versa (e.g. \fI\-\-scsi_id\fR
+or \fI\-\-scsi\-id\fR are acceptable) instead.
+.TP
+\fB\-b\fR, \fB\-\-brief\fR
+reduces one line per device output to the tuple and the primary device name.
+This may simplify scripts that process the output of this utility. With the
+\fI\-\-generic\fR option it will show on each line the tuple (from which
+the bsg pass\-through device name can be deduced), the primary device
+name (which the block subsystem uses) and the sg device name (also a
+pass\-through).
+.br
+When the \fI\-\-pdt\fR option is used together with this option the SCSI
+Peripheral Device Type (PDT) is displayed in hex (with a leading "0x")
+between the tuple and the primary device name. For NVMe namespaces "0x0"
+is displayed (for a disk or direct access device).
+.TP
+\fB\-c\fR, \fB\-\-classic\fR
+The output is similar to that obtained from 'cat /proc/scsi/scsi' .
+There is no JSON rendering of this output, the output is always in plain
+text.
+.TP
+\fB\-C\fR, \fB\-\-controllers\fR
+Lists NVMe controllers and SCSI hosts. This is a synonym for the
+\fI\-\-hosts\fR option.
+.TP
+\fB\-d\fR, \fB\-\-device\fR
+After outputting the (probable) SCSI device name the device node major and
+minor numbers are shown in brackets (e.g. "/dev/sda[8:0]").
+.TP
+\fB\-g\fR, \fB\-\-generic\fR
+Output the SCSI generic device file name. Note that if the sg driver
+is a module it may need to be loaded otherwise '\-' may appear.
+.br
+NVMe now has generic (char) devices that have the form /dev/ngCnN where
+the "C" is the controller id (cntlid) and the "N" is the namespace
+identifier (nsid). Note that NVMe administration commands (e.g. Identify)
+and MI (Management Interface (e.g. to an enclosure)) commands can use the
+/dev/nvmeC (where "C" is the cntlid) char devices since that don't need
+a namespace identifier. Conversely the NVMe Read and Write commands do
+need an (implicit) namespace identifier, so, for example, the /dev/nvme1
+char device cannot process NVMe Read commands.
+.br
+To unclutter the single line per device mode the \fI\-\-brief\fR option
+combined with this option should help.
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Output the usage message and exit.
+.TP
+\fB\-H\fR, \fB\-\-hosts\fR
+List the SCSI hosts and NVMe controllers currently attached to
+the system. If this option is not given (and the \fI\-\-controllers\fR
+option is not given) then SCSI devices (logical units (LUs)) followed by
+NVMe devices (namespaces) are listed.
+.TP
+\fB\-j\fR[=\fIJO\fR], \fB\-\-json\fR[=\fIJO\fR]
+output is in JSON format instead of plain text form. Note that arguments
+to the short and long form are themselves optional and if present start
+with "=" and no whitespace is permitted around that "=".
+.br
+See the lsscsi_json(8) manpage or use '?' for \fIJO\fR to get a summary.
+.TP
+\fB\-J\fR, \fB\-\-js\-file\fR=\fIJFN\fR
+Send the JSON output to a file named \fIJFN\fR instead of stdout. When
+this option is given, the \fI\-\-json\fR option is not required unless
+JSON settings in \fIJO\fR are needed.
+.br
+See the accompanying lsscsi_json(8) manpage.
+.TP
+\fB\-k\fR, \fB\-\-kname\fR
+Use Linux default algorithm for naming devices (e.g. block major 8, minor 0
+is "/dev/sda") rather than the "match by major and minor" in the "/dev"
+directory as discussed above.
+.br
+Said another way: Linux kernel drivers will create device nodes (Unix
+special files under the "/dev" directory) of 'char' or 'block' type
+at startup. This allows user programs to access this storage. One such
+program called udev has the ability to
+.B change
+those special change file names which is what the user will see henceforth
+apart from sysfs which still uses the original name (i.e. the name soon
+after bootup).
+.br
+This option should be seldom needed.
+.TP
+\fB\-L\fR, \fB\-\-list\fR
+Output additional information in <attribute_name>=<value> pairs, one pair
+per line preceded by two spaces. This option has the same effect as '\-lll'.
+.TP
+\fB\-l\fR, \fB\-\-long\fR
+Output additional information for each SCSI device (host). Can be
+used multiple times for more output in which case the shorter option
+form is more convenient (e.g. '\-lll'). When used three times (i.e. '\-lll')
+outputs SCSI device (host) attributes one per line; preceded by
+two spaces; in the form "<attribute_name>=<value>".
+.TP
+\fB\-U\fR, \fB\-\-long\-unit\fR
+Output logical unit name in full, if available. It replaces the normal
+vendor, product and revision strings given in the single logical unit per
+line mode. If no logical unit name is found "none" is printed. If the
+logical unit name is long (e.g. a UUID) then following fields are pushed
+further to the right as required. This option is functionally equivalent to
+the '\-uuu' option.
+.br
+If the option is used twice (e.g. '\-UU') then EUI, NAA, UUID and T10 vendor
+ID formats are prefixed by "eui.", "naa.", "uuid." and "t10." respectively.
+Note that SCSI name format used by iSCSI should already be prefixed
+by 'iqn.'. Using the '\-\-unit' option 4 or more times (e.g. '\-uuuu') will
+have the same action as '\-UU'.
+.br
+\fI\-\-long_unit\fR is also an acceptable form when invoking this option.
+.TP
+\fB\-x\fR, \fB\-\-lunhex\fR
+when this option is used once the LUN in the tuple (at the start of each
+device line) is shown in "T10" format which is up to 16 hexadecimal
+digits. It is prefixed by "0x" to distinguish the LUN from the decimal
+value shown in the absence of this option. Also hierarchal LUNs are
+shown with a "_" character separating the levels. For example the
+two level LUN: 0x0355006600000000 will appear as 0x0355_0066. If this
+option is given twice (e.g. using the short form: '\-xx') then the full
+16 hexadecimal digits are shown for each LUN, prefixed by "0x".
+.br
+For NVMe, the namespace identifier (nsid) is shown in the "L" position. The
+nsid is a 32 bit unsigned quantities with 0x0 and 0xffffffff reserved.
+Without this option, the nsid is shown in decimal. When this option is used
+once the nsid is output in hex with a lead 0x and with up to 3 leading zeros.
+When this option is used twice the nsid is output in hex with up to 7 leading
+zeros.
+.TP
+\fB\-N\fR, \fB\-\-no\-nvme\fR
+this option excludes NVMe devices and controllers for the output. This option
+may be needed to stop NVMe device output interfering with specific format
+output like that produced when the \fI\-\-classic\fR option is used.
+.br
+To only show NVMe devices, use 'lsscsi N', to only show NVMe controllers,
+use 'lsscsi \-H N'.
+.TP
+\fB\-D\fR, \fB\-\-pdt\fR
+this option displays the SCSI Peripheral Device Type (PDT) in hex preceded
+by "0x". For NVME namespaces "0x0' is displayed which corresponds to a
+disk ("Direct Access Device" or SSD). In single line output this hex PDT
+replaces the device type abbreviation (e.g. "0x0     " replaces "disk    ")
+and appears after the tuple.
+.TP
+\fB\-p\fR, \fB\-\-protection\fR
+Output target (DIF) and initiator (DIX) protection types.
+.TP
+\fB\-P\fR, \fB\-\-protmode\fR
+Output effective protection information mode for each disk device.
+.TP
+\fB\-i\fR, \fB\-\-scsi_id\fR
+outputs the udev derived matching id found in /dev/disk/by\-id/scsi* .
+This is only for disk (and disk like) devices. If no match is found
+then "dm\-uuid\-mpath*" and "usb*" are searched in the same directory.
+If there is still no match then the /sys/class/block/<disk>/holders
+directory is searched. The matching id is printed following the device
+name (e.g.  /dev/sdc) and if there is no match "\-" is output. Note
+that only disk (like) devices are matched by this option; so, for
+example, a SCSI enclosure will have an identifier of '\-'.
+.br
+Prior to revision 164 the first match in /dev/disk/by\-id/scsi* was
+printed. A change was added at that point to check for identifiers
+in a specific order as some are considered "stronger" than others.
+See the ORDER OF SCSI IDENTIFIERS section below.
+.br
+Note that the identifier output is prefixed by one character from this
+string: "328S10" to indicate what type of identifier is being shown. Those
+values are explained in the ORDER OF SCSI IDENTIFIERS section below.
+To show the identifier without that leading value, use \fI\-\-scsi_id\fR
+twice (or simply \fI\-ii\fR).
+.TP
+\fB\-s\fR, \fB\-\-size\fR
+Print disk capacity in plain text form. When given once, normal base
+10 SI units are used as a prefix for 'B' which is bytes (aka octets).
+For example MB, GB and TB stand for 10^6, 10^9 and 10^12 bytes
+respectively. When given twice, IEC 80000\-3 prefixes for 'B' are used;
+for example MiB, GiB and TiB stand for 2^20, 2^30 and 2^40
+bytes respectively. The output is rounded to 3 or less significant
+figures in order to fit on a single line.
+It will also output the size of RBC devices, CD/DVD media and host
+managed ZBC disks. Host aware ZBC disks have their "peripheral device
+type" set to 0 (the same as normal disks) so their size is output.
+.br
+If given three times (short form is the more convenient: '\-sss') then
+the disk capacity as a logical block count is given. This is an exact
+figure in decimal reported by the storage device at discovery. Discovery
+is typically just after boot time, or when it was last attached if the
+storage device is removable.
+.br
+To unclutter the single line per device mode the \fI\-\-brief\fR option
+combined with this option should help.
+.TP
+\fB\-y\fR, \fB\-\-sysfsroot\fR=\fIPATH\fR
+assumes sysfs is mounted at PATH instead of the default '/sys' . If this
+option is given PATH should be an absolute path (i.e. start with '/').
+.TP
+\fB\-S\fR, \fB\-\-sz\-lbs\fR
+Print disk capacity as a number of logical blocks (which is the same
+as '\-sss'). When used twice a comma is added followed by the logical
+block size in bytes. It should be a number like 512 or 4096.
+.br
+If the logical block size cannot be found (e.g. because the version of
+Linux predates the /sys/block/<dev_name>/queue directory) then the number
+of 512 byte blocks followed comma and then '512' is output irrespective of
+what the true logical block size of the device is. This special case
+action occurs whether this option is given one or more times.
+.br
+To unclutter the single line per device mode the \fI\-\-brief\fR option
+combined with this option should help.
+.TP
+\fB\-t\fR, \fB\-\-transport\fR
+Output transport information. This will be target related information or,
+if \fI\-\-hosts\fR is given, initiator related information. When used without
+\fI\-\-list\fR, a name or identifier (or both) are output on a single line,
+usually prefixed by the type of transport. For devices this information
+replaces the normal vendor, product and revision strings. When the
+\fI\-\-list\fR option is also given then additionally multiple lines
+of attribute_name=value pairs are output, each indented by two spaces. See
+the section on transports below.
+.TP
+\fB\-u\fR, \fB\-\-unit\fR
+Output logical unit name, if available. If this option is given once or
+twice, then the 30 character field where the vendor, product and revision
+strings are usually placed is expanded to 32 characters and replaced by the
+logical unit name. If no logical unit name is found "none" is printed.
+The first found of the NAA, EUI\-64 or SCSI name string is output unless a
+SCSI name string is found and the associated target port indicates the
+iSCSI protocol, in which case the SCSI name string is preferred. Finally
+if there is no match on the above and a T10 Vendor ID descriptor is found
+then it is used.
+.br
+If the name cannot fit in the 32 character field then it is truncated to
+the right and a trailing '_' character is used to alert the reader to the
+truncation. The 32 character width is chosen since that is large enough to
+hold 16 byte NAA or EUI\-64 identifiers. However SCSI name strings as used
+by iSCSI can be larger than that.
+.br
+If this option is used twice then this field is also 32 character wide. If
+the logical unit name cannot fit then it will be truncated to the left and
+a leading '_' character is used to alert the reader to the truncation.
+.br
+If this option is used three times the whole logical unit name is
+output, followed by several spaces.
+.br
+In order for this option to work, it needs a Linux kernel from and including
+3.15 . It accesses the sysfs vpd_pg83 file for the device in question. Old
+SCSI and ATA (SATA) equipment may not provide this information. If it is
+provided by ATA (SATA) then it will be the WWN.
+.TP
+\fB\-v\fR, \fB\-\-verbose\fR
+outputs directory names where information is found. Use multiple times for
+more output.
+.TP
+\fB\-V\fR, \fB\-\-version\fR
+outputs version information then exits. If used once outputs to stderr; if
+used twice outputs to stdout and shortens the date to yyyymmdd numeric
+format. The first number in the version string is the release number.
+.TP
+\fB\-w\fR, \fB\-\-wwn\fR
+additionally outputs the WWN for disks. The World Wide Name (WWN) is
+typically 64 bits long (16 hex digits) but could be up to 128 bits long.
+To indicate the WWN is hexadecimal, it is prefixed by "0x". Originally this
+option looked at the '/dev/disk/by\-id/wwn\-*' symlinks to scsi devices;
+but this was changed to '/dev/disk/by\-id/scsi\-*' as the latter were more
+stable (i.e. less likely to change from one boot to the next).
+.br
+If this option is used twice then the original action takes place. In other
+words the '/dev/disk/by\-id/wwn\-*' symlinks to scsi devices are used.
+.SH TRANSPORTS
+This utility lists SCSI devices which are known as logical units (LU) in
+the SCSI Architecture Model (ref: SAM\-5 at https://www.t10.org) or hosts
+when the \fI\-\-hosts\fR option is given. A host is called an initiator in
+SAM\-5. A SCSI command travels out via an initiator, across some transport
+to a target and then onwards to a logical unit. A target device may contain
+several logical units. A target device has one or more ports that can be
+viewed as transport end points. Each FC and SAS disk is a single target
+that has two ports and contains one logical unit. If both target ports
+on a FC or SAS disk are connected and visible to a machine, then lsscsi
+will show two entries. Initiators (i.e. hosts) also have one or more ports
+and some HBAs in Linux have a host entry per initiator port while others
+have a host entry per initiator device.
+.PP
+When the \fI\-\-transport\fR option is given for devices (i.e.
+\fI\-\-hosts\fR not given) then most of the information produced by lsscsi
+is associated with the target, or more precisely: the target port, through
+which SCSI commands pass that access a logical unit.
+.PP
+Typically this utility provides one line of output per "device" or host.
+Significantly more information can be obtained by adding the \fI\-\-list\fR
+option. When used together with the \fI\-\-transport\fR option, after
+the summary line, multiple lines of transport specific information in the
+form "<attribute_name>=<value>" are output, each indented by two spaces.
+Using a filter argument will reduce the volume of output if a lot of
+devices or hosts are present.
+.PP
+The transports that are currently recognized are: IEEE 1394, ATA, FC,
+iSCSI, SAS, SATA, SPI, SRP and USB.
+.PP
+For IEEE 1394 (a.k.a. Firewire and "SBP" when storage is involved), the
+EUI\-64 based target port name is output when \fI\-\-transport\fR is given,
+in the absence of the \fI\-\-hosts\fR option. When the \fI\-\-hosts\fR
+option is given then the EUI\-64 initiator port name is output. Output on
+the summary line specific to the IEEE 1394 transport is prefixed by "sbp:".
+.PP
+To detect ATA and SATA devices a crude check is performed on the driver
+name (after the checks for other transports are exhausted). Based on the
+driver name either the ATA or SATA transport type is chosen. Output on
+the summary line is either "ata:" or "sata:". A search is made for an
+associated vpd_pg83 file in sysfs, if found it may contain the device's
+WWN which is output if present. The WWN will not appear in Linux kernels
+before 3.15 and with old PATA and SATA devices. Most device and hosts
+flagged as "ata:" will use the parallel ATA transport (PATA). For SATA
+devices that are attached via a SAS expander, see the SAS paragraph below.
+.PP
+For Fibre Channel (FC) the port name and port identifier are output
+when \fI\-\-transport\fR is given. In the absence of the \fI\-\-hosts\fR
+option these ids will be for the target port associated with the
+device (logical unit) being listed. When the \fI\-\-hosts\fR option is
+given then the ids are for the initiator port used by the host. Output
+on the summary line specific to the FC transport is prefixed by "fc:".
+If FCoE (over Ethernet) is detected the prefix is changed to "fcoe:".
+.PP
+For iSCSI the target port name is output when \fI\-\-transport\fR is given,
+in the absence of the \fI\-\-hosts\fR option. This is made up of the
+iSCSI name and the target portal group tag. Since the iSCSI name starts
+with "iqn" no further prefix is used. When the \fI\-\-hosts\fR option
+is given then only "iscsi:" is output on the summary line.
+.PP
+For Serial Attached SCSI the SAS address of the target port (or initiator
+port if \fI\-\-hosts\fR option is also given) is output. This will be a naa\-5
+address. For SAS HBAs and SAS targets (such as SAS disks and tape drives)
+the SAS address will be world wide unique. For SATA disks attached to a
+SAS expander, the expander provides the SAS address by adding a non zero
+value to its (i.e. the expander's) SAS address (e.g. expander_sas_address +
+phy_id + 1). SATA disks directly attached to SAS HBAs seem to have an
+indeterminate SAS address. Output on the summary line specific to the SAS
+transport is prefixed by "sas:".
+.PP
+For SATA devices, see the paragraph above on ATA devices. As noted in the
+previous paragraph, SATA devices attached to SAS expanders will display a
+manufactured SAS transport address (manufactured by the expander) rather
+than the SATA device's WWN.
+.PP
+For the SCSI Parallel Interface (SPI) the target port identifier (usually
+a number between 0 and 15 inclusive) is output when \fI\-\-transport\fR is
+given, in the absence of the \fI\-\-hosts\fR option. When the \fI\-\-hosts\fR
+option is given then only "spi:" is output on the summary line.
+.PP
+For the PCIe transport (a.k.a. PCI Express) there at two possible storage
+types: NVMe and SOP/PQI (SCSI over PCIe). There are very few examples of the
+latter currently so this utility concentrates on NVMe. NVMe uses its own
+command set and not SCSI but has many things in common. Rather than
+re\-invent everything currently in use that SCSI has accumulated over nearly
+40 years, NVMe is beginning to use some parts of SCSI. A recent example is
+the SES\-3 standard for enclosure management which has been adopted by NVMe.
+In SCSI a SES device is a logical unit with a peripheral device type (PDT)
+of 0xd (for enclosure) so it will appear when the lsscsi utility is invoked
+without any options. In NVMe is seems that an enclosure with appear as
+attached to the management interface (MI) of a NVMe controller. This means
+it should appear when "lsscsi \-\-hosts" is invoked. It is unclear whether
+such a NVMe controller can have any storage namespaces associated with
+it. The sg_ses utility (in the sg3_utils package) can then be given that NVMe
+controller's device name (e.g. /dev/nmve1).
+.br
+When the \fI\-\-transport\fR option is given, after "pcie" the NVMe
+controller's subsystem vendor id and device id are output, separated by a
+colon (e.g. "pcie 0x8086:0x390a").
+.PP
+For the SCSI RDMA Protocol (SRP) the IB (InfiniBand) port's GUID is given.
+As an example, it has a form like this: 0002:c903:00fa:abcd .
+.PP
+When a USB transport is detected, the summary line will contain "usb:"
+followed by a USB device name. The USB device name has the
+form "<b>\-<p1>[.<p2>[.<p3>]]:<c>.<i>" where <b> is the USB bus number, <p1>
+is the port on the host. <p2> is a port on a host connected hub, if present.
+If needed <p3> is a USB hub port closer to the USB storage device. <c>
+refers to the configuration number while <i> is the interface number. There
+is a separate SCSI host for each USB (SCSI) target. A USB SCSI target may
+contain multiple logical units. Thus the same "usb: <device_name>" string
+appears for a USB SCSI host and all logical units that belong to the USB
+SCSI target associated with that USB SCSI host.
+.SH LUNS
+For historical reasons and as used by several other Unix based Operating
+Systems, Linux uses a tuple of integers to describe (a path to) a SCSI
+device (also know as a Logical Unit (LU)). The last element of that tuple
+is the so\-called Logical Unit Number (LUN). And originally in SCSI a
+LUN was an integer, at first 3 bits long, then 8 then 16 bits. SCSI LUNs
+today (SAM\-5 section 4.7) are 64 bits but SCSI standards now consider
+a LUN to be an array of 8 bytes.
+.PP
+Up until 2013, Linux mapped SCSI LUNs to a 32 bit integer by taking the
+first 4 bytes of the SCSI LUN and ignoring the last 4 bytes. Linux treated
+the first two bytes of the SCSI LUN as a unit (a word) and it became the
+least significant 16 bits in the Linux LUN integer. The next two bytes of
+the SCSI LUN became the upper 16 bits in the Linux LUN integer. The rationale
+for this was to keep commonly used LUNs small Linux LUN integers. The most
+common LUN (by far) in SCSI LUN (hex) notation is 00 00 00 00 00 00 00 00
+and this becomes the Linux LUN integer 0. The next most common LUN is
+00 01 00 00 00 00 00 00 and this becomes the Linux LUN integer 1.
+.PP
+In 2013 it is proposed to increase Linux LUNs to a 64 bit integer by extending
+the mapping outlined above. In this case all information that is possible
+to represent in a SCSI LUN is mapped a Linux LUN (64 bit) integer. And the
+mapping can be reversed without losing information.
+.PP
+This version of the utility supports both 32 and 64 bit Linux LUN integers.
+By default the LUN shown at the end of the tuple commencing each line is
+a Linux LUN as a decimal integer. When the \fI\-\-lunhex\fR option is given
+then the LUN is in SCSI LUN format with the 8 bytes run together, with the
+output in hexadecimal and prefixed by '0x'. The LUN is decoded according
+to SAM\-5's description and trailing zeros (i.e. digits to the right) are not
+shown. So LUN 0 (i.e. 00 00 00 00 00 00 00 00) is shown as 0x0000 and
+LUN 65 (i.e. 00 41 00 00 00 00 00 00) is shown as 0x0041.
+If the \fI\-\-lunhex\fR option is given twice then the full 64 bits (i.e. 16
+hexadecimal digits) are shown.
+.PP
+If the \fI\-\-lunhex\fR option is not given on the command line then the
+environment variable LSSCSI_LUNHEX_OPT is checked. If LSSCSI_LUNHEX_OPT is
+present then its associated value becomes the number of times the
+\fI\-\-lunhex\fR is set internally. So, for
+example, 'LSSCSI_LUNHEX_OPT=2  lsscsi' and 'lsscsi \-xx' are equivalent.
+.SH ORDER OF SCSI IDENTIFIERS
+This section only applies to the \fI\-\-scsi_id\fR option and only for
+disk like devices (e.g. not tapes nor enclosures). There are potentially
+several SCSI identifiers and from revision 164 they are checked in the
+following order and only the first found is output.
+.PP
+The SCSI identifier preference order is:
+.PP
+  \fB3\fR : NAA based (Network address Authority)
+.PP
+  \fB2\fR : EUI\-64 based
+.PP
+  \fB8\fR : SCSI name string (e.g. iSCSI: iqn.1998\-01.com.zzware.iscsi:name1)
+.PP
+  \fBS\fR : serial number from SCSI VPD page 0x80
+.PP
+  \fB1\fR : T10 Vendor Identifier
+.PP
+  \fB0\fR : Vendor Specific
+.br
+Those numbers prefixing each entry are the SCSI 'Designator Types' found
+in the definition of the Device Identification VPD page (0x83) in SPC\-3,
+SPC\-4 and SPC\-5. The 'S' of course if not a number and it refers to
+a different VPD page: the Serial Number VPD page (0x80).
+.PP
+There is a more general \fI\-\-wwn\fR option that should apply to almost all
+devices. The term "WWN" (world\-wide name) comes from the ATA and NVMe
+standards and corresponds to the "Logical Unit (LU) name" in SCSI. The LU
+name in SCSI tends to change by transport. For SAS the LU name is the LU's
+NAA identifier.
+.PP
+Plus there the \fI\-\-unit\fR and the \fI\-\-long\-unit\fR options that may
+be helpful in uniquely identifying storage devices.
+.SH SYSFS VPD PAGES
+Most of the numerical identifiers (and iSCSI url type strings) come from the
+SCSI INQUIRY command's Device Identification VPD (vital product data) page.
+It is one of many VPD pages. These VPD pages are essentially constant (they
+can be changed in extraordinary situations) and are read by the SCSI
+subsystem when a SCSI device is attached to the system. Modern versions of
+Linux make copies of those vpd pages available in the sysfs pseudo file
+system. They are binary files with names like "vpd_pg83" where 83 is the
+numerical identifier of the Device Identification VPD page (in hex).
+.PP
+The sg_inq and sg_vpd utilities in the sg3_utils package can decode those
+pages. Currently VPD pages 00 (list of supported VPD pages), 80 (serial
+number), 83 (device identification (DI)) and 89 (ATA Information) are
+available.  More pages may appear in the future. Root permissions are
+not required to access these pages. Using sg_vpd with dev/sg3 as an
+example, the following invocation will decode sg3's DI page:
+.PP
+  sg_vpd \-\-raw \-\-inhex=/sys/class/scsi_generic/sg3/device/vpd_pg83
+.PP
+which can be shortened to:
+.PP
+  sg_vpd \-rI /sys/class/scsi_generic/sg3/device/vpd_pg83
+.PP
+Note that the DI VPD page contains identifiers for both a device (a
+Logical Unit (LU) in SCSI jargon) and the target device that contains
+that LU. A target may contain one or more LUs and LUs are often disks.
+A target is the (far) endpoint of the transport protocol in use, while
+the initiator is the near end of that transport.
+.SH EXAMPLES
+Information about this utility including examples can also be found at:
+https://sg.danny.cz/scsi/lsscsi.html .
+.SH NOTES
+Information for this command is derived from the sysfs file system,
+which is assumed to be mounted at /sys unless specified otherwise
+by the user.
+SCSI (pseudo) devices that have been detected by the SCSI mid level
+will be listed even if the required upper level drivers (i.e. sd, sr,
+st, osst or ch) have not been loaded. If the appropriate upper level
+driver has not been loaded then the device file name will appear
+as '\-' rather than something like '/dev/st0'. Note that some
+devices (e.g. scanners and medium changers) do not have a primary upper
+level driver and can only be accessed via a SCSI generic (sg) device
+name.
+.PP
+Generic SCSI devices can also be accessed via the bsg driver in Linux.
+By default, the bsg driver's device node names are of the
+form '/dev/bsg/\fIH:C:T:L\fR'. So, for example, the SCSI device shown by this
+utility on a line starting with the tuple '6:0:1:2' could be accessed via the
+bsg driver with the '/dev/bsg/6:0:1:2' device node name.
+.PP
+lsscsi version 0.21 or later is required to correctly display SCSI devices
+in Linux kernel 2.6.26 (and possibly later) when the
+CONFIG_SYSFS_DEPRECATED_V2 kernel option is not defined.
+.PP
+In Unix, device nodes (e.g. /dev/sdb) are "special" devices that are
+either "block" or "char" devices. They also have a "major" and "minor"
+numbers and a file name (e.g. "sdb"). The following partial listing should
+clarify how these are shown by the ls command in Linux:
+.PP
+  /dev$ ls -l n*
+  crw------- 1 root root 247,   0 Apr 24 16:56 ng0n1
+  crw-rw-rw- 1 root root   1,   3 Apr 24 16:56 null
+  crw------- 1 root root 248,   0 Apr 29 15:25 nvme0
+  brw-rw---- 1 root disk 259,   0 Apr 24 16:56 nvme0n1
+  brw-rw---- 1 root disk 259,   1 Apr 24 16:56 nvme0n1p1
+  brw-rw---- 1 root disk 259,   2 Apr 24 16:56 nvme0n1p2
+.PP
+The permissions string (e.g. "crw-rw-rw-") starts with a "c" for a char
+device and "b" for a block device. The two numbers separated by comma (and
+a few whitespace) are the major and minor numbers respectively. As a general
+rule the major number identifies the Linux driver which will handle all
+devices that share the same mode (i.e. char or block) and the same major
+number. Traditionally Unix major numbers were fixed (e.g. the sg driver
+is char device 21) but as Linux grew it was obvious that the "fixed major
+number" scheme would not scale. So now device node major numbers are
+allocated dynamically (i.e. at bootup) and the mapping between the driver
+name and its major number can be found in the output of "/proc/devices".
+.PP
+Why explain this? The reason is that all SCSI (and ATA) device nodes in
+Linux have fixed (i.e. well-known) device major numbers. However NVMe,
+which is much newer, has dynamically allocated major numbers. So when a
+utility like lsscsi is dealing with NVMe devices and controllers, often
+an extra step is required: looking at /proc/devices to determine the
+mapping between a driver anme and its major number.
+.PP
+Also the device node name (and udev can change these to override the
+kernel's initial settings) may not always suggest the corresponding
+driver name. For the SCSI generic driver, just remove the trailing
+number (e.g. device node: /dev/sg37, driver: sg); for SCSI disks the
+first two letters are the driver name (e.g. device node: /dev/sdabc,
+driver: sd) and for NVMe generic devices the "driver" name
+is "nvme-generic" (e.g. device node: /dev/ng2n1, driver: nvme-generic).
+Trying to find the nvme-generic driver itself is difficult as it is
+a built\-in part of the core nvme driver.
+.PP
+When a system has been sensibly configured and working properly, this
+utility should be able to hide the details in the above paragraphs.
+However when things go wrong, the above information may be useful.
+.SH AUTHOR
+Written by Doug Gilbert
+.SH "REPORTING BUGS"
+Report bugs to <dgilbert at interlog dot com>.
+.SH COPYRIGHT
+Copyright \(co 2003\-2023 Douglas Gilbert
+.br
+This software is distributed under the GPL version 2. There is NO
+warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+.SH "SEE ALSO"
+.B lsscsi_json(8)
+.B lspci
+.B lsusb
+.B lsblk
+.B sg_inq, sg_vpd (both in sg3_utils package),

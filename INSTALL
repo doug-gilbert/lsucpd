@@ -1,0 +1,47 @@
+To build:
+ $ ./autogen.sh
+ $ ./configure
+ $ make
+
+To install call:
+ $ make install
+This will most likely need superuser privilege. The executable is placed
+in the /usr/local/bin directory while the man page is placed in the
+/usr/local/man/man8 directory. The install directory are controlled by
+the PREFIX variable in the Makefile. To install executable in the /usr/bin
+directory use './configure --prefix=/usr ' instead.
+
+To uninstall the executable and man page call:
+ $ make uninstall
+
+To clean out object and executable files from the working directory call:
+ $ make clean
+
+To clean out prior to making a tarball (so ./configure needs to be run
+on the target system):
+ $ make distclean
+
+Rpms are also available. A lsupd.spec file is included in the tarball
+to facilitate building rpms. One way of doing this on a RedHat system
+is to place the tarball of the form 'lsupd-%{version}.tar.gz' in the
+/usr/src/redhat/SOURCE directory and the spec file in the
+/usr/src/redhat/SPEC directory. Then execute 'rpmbuild -ba lsupd.spec'
+from the "SPEC" directory. [Specifying the
+target may help (e.g. 'rpmbuild --target=x86_64 -ba lsupd.spec') . If
+successful that will deposit the binary rpm in the
+/usr/src/redhat/RPMS/x86_64 directory and the source rpm in the
+/usr/src/redhat/SRPMS directory. Building an rpm on Suse is similar
+(although they use their name rather than "redhat" in the above paths).
+
+
+To build a Linux debian "deb" (binary) package, first untar the tarball,
+then change directory to the top level within the lsupd source. Then:
+ # chmod +x debian/rules
+ # dpkg-buildpackage -b -rfakeroot
+The binary deb packages will be placed in the parent directory (of
+the lsupd source directory) if all goes well.
+There is a build_debian.sh script in the tarball's top level directory
+that does the above.
+
+Douglas Gilbert
+8 June 2023
