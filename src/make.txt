@@ -1,3 +1,0 @@
-g++ -DHAVE_CONFIG_H -I. -I..    -Wall -W -pedantic -std=c++20 -DDEBUG -Wextra -Wmisleading-indentation -Wduplicated-cond -Wlogical-op -Wnull-dereference -Wshadow -Wunused -Wsizeof-array-argument -Wduplicated-branches -g -O2 -MT lsupd.o -MD -MP -MF .deps/lsupd.Tpo -c -o lsupd.o lsupd.cpp
-mv -f .deps/lsupd.Tpo .deps/lsupd.Po
-g++ -Wall -W -pedantic -std=c++20 -DDEBUG -Wextra -Wmisleading-indentation -Wduplicated-cond -Wlogical-op -Wnull-dereference -Wshadow -Wunused -Wsizeof-array-argument -Wduplicated-branches -g -O2   -o lsupd lsupd.o  

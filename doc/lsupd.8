@@ -1,91 +1,27 @@
-.TH LSSCSI "8" "May 2023" "lsscsi\-0.33" LSSCSI
+.TH LSUPD "8" "July 2023" "lsupd\-0.90" LSUPD
 .SH NAME
-lsscsi \- list SCSI devices (or hosts), list NVMe devices
+lsscsi \- list USB-C Power Delivery objects
 .SH SYNOPSIS
-.B lsscsi
-[\fI\-\-brief\fR] [\fI\-\-classic\fR] [\fI\-\-controllers\fR]
-[\fI\-\-device\fR] [\fI\-\-generic\fR] [\fI\-\-help\fR] [\fI\-\-hosts\fR]
-[\fI\-\-json[=JO]\fR] [\fI\-\-js\-file=JFN\fR] [\fI\-\-kname\fR]
-[\fI\-\-list\fR] [\fI\-\-long\fR] [\fI\-\-long\-unit\fR] [\fI\-\-lunhex\fR]
-[\fI\-\-no\-nvme\fR] [\fI\-\-pdt\fR] [\fI\-\-protection\fR]
-[\fI\-\-protmode\fR] [\fI\-\-scsi_id\fR] [\fI\-\-size\fR]
-[\fI\-\-sysfsroot=PATH\fR] [\fI\-\-sz\-lbs] [\fI\-\-transport\fR]
-[\fI\-\-unit\fR] [\fI\-\-verbose\fR] [\fI\-\-version\fR] [\fI\-\-wwn\fR]
+.B lsupd
+[\fI\-\-caps\fR] [\fI\-\-help\fR] [\fI\-\-json[=JO]\fR]
+[\fI\-\-js\-file=JFN\fR] [\fI\-\-sysfsroot=PATH\fR]
+[\fI\-\-verbose\fR] [\fI\-\-version\fR] [\fIFILTER ... \fR]
 [\fIH:C:T:L\fR]
 .SH DESCRIPTION
 .\" Add any additional description here
-Uses information in sysfs (Linux kernel series 2.6 and later) to list SCSI
-devices (or hosts) currently attached to the system. Many non\-SCSI storage
-devices (but not all) used the SCSI subsystem in Linux. In lsscsi version
-0.30 support was added to list NVMe devices and controllers.
-.PP
-The term "device" is wonderfully vague with one possible definition being
-the "thing" at the other end of the wire (from the CPU or host computer).
-In SCSI the "thing" at the other end of the wire is called the target
-which contains one or more "logical units" (LUs). A LU is a sequence of
-equally sized blocks addressed by a "logical block address" (LBA) starting
-at 0. In NVMe the "thing" at the other end of the wire is a "NVMe device"
-which contains one or more namespaces.
-.PP
-By default, this utility is in single_line_per_LU/namespace mode, each line
-starts with a 4 element tuple surrounded by square brackets. For SCSI devices
-the first element ('H') is the host number, the second element ('C') is the
-controller number, the third element ('T') is the target number and the final
-element is the Logical Unit Number ('L' or LUN). All four are integers.
-For NVMe namespaces see two paragraphs down. When the \fI\-\-hosts\fR option
-is given for SCSI devices the tuple is reduced to one element: the host
-number.
-.PP
-If a \fIH:C:T:L\fR tuple is given as an argument on the command line then
-it acts as a filter and only devices that match it are listed. The colons
-don't have to be present, and '\-', '*', '?' or missing components at the
-end are interpreted as wildcards. The default is '*:*:*:*' which means to
-match devices (i.e.  LU or namespaces). Any filter string using '*' of '?'
-should be surrounded by single or double quotes to stop shell expansions.
-If '\-' is used as a wildcard then the whole filter tuple should be prefixed
-by '\-\- ' to tell this utility there are no more options on the command
-line to be interpreted. The use of '\-\- ' like that is standard Unix
-command line practice. A leading '[' and trailing ']' are permitted (
-e.g. '[1:0:0]' matches all LUNs on 1:0:0). May also be used to filter
-\fI\-\-hosts\fR in which case only the \fIH\fR is active and may be either
-a number or in the form "host<n>" where <n> is a host number.
-.PP
-For NVMe devices and controllers almost all of the previous paragraph
-applies. The main difference is that the letter "N" appears in
-the 'H' (first) position. The 'C' position for NVMe is the controller's
-Linux generated "char" device's minor number which is the first number
-that appears in a typical NVMe controller name, for example: "/dev/nvme2".
-The 'T' position for NVMe is the "CNTLID" value. The final 'L' position
-is the NVMe namespace identifier which is typically a sequential value
-starting at 1. The leading explicit "N" for NVMe devices is converted
-internally into a large value (32,767) that should not interfere with any
-Linux generated SCSI host number; it also means that the numeric sort
-used to show hosts (controllers) and devices (LUs or namespaces) will
-always place NVMe devices and controllers after those that use the SCSI
-subsystem. To filter using a \fIH:C:T:L\fR argument for NVMe controllers,
-"hostN", "hostN:<num>", "N" or "N:<num>" may be used; when no "<num>" is
-given, only NVMe controllers will be listed (i.e. it lists no SCSI
-hosts (HBAs)).
-.PP
-By default in this utility device node names (e.g. "/dev/sda"
-or "/dev/root_disk") are obtained by noting the major and minor numbers for
-the listed device obtained from sysfs (e.g. the contents
-of "/sys/block/sda/dev") and then looking for a match in the "/dev"
-directory. This "match by major and minor" will allow devices that have been
-given a different name by udev (for example) to be correctly reported by
-this utility.
-.PP
-In some situations it may be useful to see the device node name that
-Linux would produce by default, so the \fI\-\-kname\fR option is provided.
-An example of where this may be useful is kernel error logs which tend to
-report disk error messages using the disk's default kernel name.
+Despite appearances, this utility has nothing to do with UPDates. The first
+part of its name (i.e. "ls") comes from the Unix command name to list
+file names (including directories). The trailing "upd" is an abbreviation
+of "USB-C Power Delivery". It joins a growing family of "ls" utilities such
+as lsblk, lscpu, lsfd, lsmem, lsof, lspci, lsscsi and lsusb.
+   ....
 .SH OPTIONS
 Arguments to long options are mandatory for short options as well. The options
 are arranged in alphabetical order based on the long option name. Hyphenated
-long options can also take underscore, and vice versa (e.g. \fI\-\-scsi_id\fR
-or \fI\-\-scsi\-id\fR are acceptable) instead.
+long options can also take underscore, and vice versa (e.g.
+\fI\-\-js\-file=JFN\fR and \fI\-\-js_file=JFN\fR have the same meaning).
 .TP
-\fB\-b\fR, \fB\-\-brief\fR
+\fB\-c\fR, \fB\-\-caps\fR
 reduces one line per device output to the tuple and the primary device name.
 This may simplify scripts that process the output of this utility. With the
 \fI\-\-generic\fR option it will show on each line the tuple (from which
@@ -93,55 +29,16 @@ the bsg pass\-through device name can be deduced), the primary device
 name (which the block subsystem uses) and the sg device name (also a
 pass\-through).
 .br
-When the \fI\-\-pdt\fR option is used together with this option the SCSI
-Peripheral Device Type (PDT) is displayed in hex (with a leading "0x")
-between the tuple and the primary device name. For NVMe namespaces "0x0"
-is displayed (for a disk or direct access device).
-.TP
-\fB\-c\fR, \fB\-\-classic\fR
-The output is similar to that obtained from 'cat /proc/scsi/scsi' .
-There is no JSON rendering of this output, the output is always in plain
-text.
-.TP
-\fB\-C\fR, \fB\-\-controllers\fR
-Lists NVMe controllers and SCSI hosts. This is a synonym for the
-\fI\-\-hosts\fR option.
-.TP
-\fB\-d\fR, \fB\-\-device\fR
-After outputting the (probable) SCSI device name the device node major and
-minor numbers are shown in brackets (e.g. "/dev/sda[8:0]").
-.TP
-\fB\-g\fR, \fB\-\-generic\fR
-Output the SCSI generic device file name. Note that if the sg driver
-is a module it may need to be loaded otherwise '\-' may appear.
-.br
-NVMe now has generic (char) devices that have the form /dev/ngCnN where
-the "C" is the controller id (cntlid) and the "N" is the namespace
-identifier (nsid). Note that NVMe administration commands (e.g. Identify)
-and MI (Management Interface (e.g. to an enclosure)) commands can use the
-/dev/nvmeC (where "C" is the cntlid) char devices since that don't need
-a namespace identifier. Conversely the NVMe Read and Write commands do
-need an (implicit) namespace identifier, so, for example, the /dev/nvme1
-char device cannot process NVMe Read commands.
-.br
-To unclutter the single line per device mode the \fI\-\-brief\fR option
-combined with this option should help.
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 Output the usage message and exit.
-.TP
-\fB\-H\fR, \fB\-\-hosts\fR
-List the SCSI hosts and NVMe controllers currently attached to
-the system. If this option is not given (and the \fI\-\-controllers\fR
-option is not given) then SCSI devices (logical units (LUs)) followed by
-NVMe devices (namespaces) are listed.
 .TP
 \fB\-j\fR[=\fIJO\fR], \fB\-\-json\fR[=\fIJO\fR]
 output is in JSON format instead of plain text form. Note that arguments
 to the short and long form are themselves optional and if present start
 with "=" and no whitespace is permitted around that "=".
 .br
-See the lsscsi_json(8) manpage or use '?' for \fIJO\fR to get a summary.
+See the lsupd_json(8) manpage or use '?' for \fIJO\fR to get a summary.
 .TP
 \fB\-J\fR, \fB\-\-js\-file\fR=\fIJFN\fR
 Send the JSON output to a file named \fIJFN\fR instead of stdout. When
@@ -566,7 +463,95 @@ the initiator is the near end of that transport.
 .SH EXAMPLES
 Information about this utility including examples can also be found at:
 https://sg.danny.cz/scsi/lsscsi.html .
-.SH NOTES
+.SH INTRODUCTION TO USB\-C PD
+Here are some USB\-C PD basics. The plan is that only one type of cable will
+be needed: a USB-C male to male cable with up to 24 pins carrying power and
+data from one end to the other. Since the pins are so small, four or more
+pins are used to carry power which could be as large as 240 Watts (48 Volts
+at 5 Amps DC).
+.PP
+USB-C Power Delivery (PD) has almost nothing to do with the rest of USB,
+time to forget about "hosts" and "devices" and instead think about "sources"
+and "sinks". Since USB PD revision 2, both sources and sinks may not be "USB
+Communication Capable" which means possibly no D+ or D- and no "superspeed"
+signals.
+.PP
+USB PD signalling takes place over the CC line (Configuration Control) which
+not only determines which end is the PD source and which is the PD sink, but
+also things like Alternate mode (e.g. for carrying DisplayPort over USB-C).
+In the USB-C receptacle (e.g. the socket on the side of a laptop), there are
+two CC lines called CC1 and CC2. In the mating USB-C plug (e.g. one end of a
+USB-C male to male cable) the same two lines are called CC and Vconn. Why
+aren't the same names used? That is part of the excitement with reversible
+cables! USB-C PD cables are reversible in two sense: each plug can be taken
+out and rotated 180 degrees and re\-inserted; the other sense is that each
+end of the cable is the same, so the cable ends can be switched around.
+For naming the PD relevant lines, it is best to think about CC and Vconn, CC
+goes from one end of the USB-C cable to the other while Vconn powers the
+so\-called Emarker chip (required for cables that can carry more than 3 Amps)
+and retimer chips needed in cables that can carry Superspeed data (e.g. 5,
+10 and 20 Gbps). The most basic USB-C male to male cables don't need Vconn.
+.PP
+A USB\-C PD source provides power, delivered between the Ground pins and the
+VBus pins. There are four of each (i.e. pins) while Ground may also be
+carried on the outer shield in the cable which is connected to the outer
+shell in USB\-C plugs and receptacles. Notice that the USB-C plug (male)
+shell fits snugly inside the USB-C receptacle (female connector)
+.PP
+In the absence of USB-C PD intelligence (i.e. computer protocols), resistors
+are used to determine which end is a USB-C source and which is a USB-C sink.
+A major difference between USB\-C PD and earlier generations is that no
+voltage will be present on Vbus (hence no power) unless those resistors
+(or PD protocol) identify one end as a source and the other end as a sink.
+So if two USB\-C PD sources (e.g. AC power adapters) are connected via
+a male to male cable, no power will flow. Power banks which can both source
+power and sink power (e.g. when its battery is being recharged) either
+need separate USB\-C PD receptacles with at least one for charging, or, as
+is more common now, need DRP USB\-C ports (receptacles). Dual Role
+Power (DRP) means that a port can be switched from a sink to a source (or
+vice-versa) under protocol control. There is a related term call DRD
+for Dual Role Data in which one end can specify whether it is a USB Host
+or USB Device. When resistors are determining which is source or sink,
+the source is assumed to be a USB Host and the sink is assumed to be a USB
+device. This matches what previous generations of USB did.
+.PP
+DRP can cause issues for any devices that doesn't have its own battery.
+A USB hub would be an example of this, especially "docks" available for
+many high end laptops. If a power adapter (connected to the host AC
+supply) connected to the hub suddenly loses power (e.g. a blackout) then
+the hub will reset while the laptop can switch to its internal battery.
+Any USB device (even self powered ones) connected to the hub will lose
+its connection to the laptop only to re-connect a short while later. But
+the damage may already have been done. If the hub detects the AC power
+reducing, it could request the laptop to do a "Fast Role Swap" (FRS) during
+which the laptop goes from being a sink to a source without dropping the
+Vbus voltage.
+.PP
+USB-C PD revision 1 is dead, curiously it tried to send the CC signal
+modulated over the Vbus line, an experiment that failed in the real world.
+So USB-C PD revision 2 dropped support for USB A and B (i.e. previous
+generations of USB) and only supported USB\-C which has a dedicated CC
+line for the PD protocol traffic. USB-C Revision 2 also introduced
+power output up 100 Watts or 60 Watts for cables that were not Emarked
+and thus could not carry more than 3 Amps. Fixed voltages of 5 Volts,
+9 Volts, 15 Volts and 20 Volts were introduced, the higher ones one if
+the output power was greater than a certain level. So the maximum power
+was 100 Watts using 20 Volts at 5 Amps with a suitable cable. Notice
+that 12 Volts was not required but is provided by many power adapters.
+.PP
+USB-C PD revision 3.0 introduced the "Programmable Power Supply"
+feature (PPS) in which the sink requests a range of voltages (e.g. 3.3
+to 11 Volts)
+at an operating current. The source would initially try to provide the
+highest voltage but if the current draw exceeded the specified operating
+current then the source would reduce the voltage until an equilibrium
+point was reached. The is called current limiting (CL) or constant
+current (CC) mode but the abbreviation CC is obviosly confusing. The
+CL function in the PD source is typically done via hardware which is
+typically a bit safer (and faster) than doing it with software. That
+type of CL is very useful for charging Lithium Ion batteries
+
+
 Information for this command is derived from the sysfs file system,
 which is assumed to be mounted at /sys unless specified otherwise
 by the user.
@@ -638,7 +623,7 @@ Written by Doug Gilbert
 .SH "REPORTING BUGS"
 Report bugs to <dgilbert at interlog dot com>.
 .SH COPYRIGHT
-Copyright \(co 2003\-2023 Douglas Gilbert
+Copyright \(co 2023 Douglas Gilbert
 .br
 This software is distributed under the GPL version 2. There is NO
 warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.

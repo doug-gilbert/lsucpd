@@ -1,0 +1,319 @@
+.TH LSUPD_JSON "8" "July 2023" "lsupd\-0.90" LSUPD
+.SH NAME
+lsupd_json \- JSON output options for the lsupd utility
+.SH SYNOPSIS
+.B lsupd
+\fI\-\-json[=JO]\fR [\fI\-\-js\-file=JFN\fR] [\fIOTHER_OPTIONS\fR]
+.SH DESCRIPTION
+Uses information in sysfs (Linux kernel series 2.6 and later) to list SCSI
+devices (or hosts) currently attached to the system. Many non\-SCSI storage
+devices (but not all) used the SCSI subsystem in Linux.
+.PP
+JavaScript Object Notation (JSON) is an open standard file format that can be
+used for data exchange between programs including across a network. See
+https://en.wikipedia.org/wiki/JSON . JSON comes in many flavours and this one
+uses the json-builder C implementation found at
+https://github.com/json-parser/json-builder which implements four simple JSON
+data types: string, integer, boolean and null. Its other data types are JSON
+object and JSON array. The json-builder library uses the
+SPDX\-License\-Identifier: BSD\-2\-Clause which is the same license as lsupd.
+.PP
+The json-builder library is relatively lightweight (700 lines of C code) and
+is 'hidden' fully within the sg3_utils library which this utility shares with
+the sg3_utils package. The author has modified the json-builder header to
+include what is needed from the json-parser header so that only the builder
+and not the parser are built. The parser could be added later, but currently
+there seems to be no need for it.
+.PP
+This utility uses the 'snake_case' convention for JSON property/object names:
+all in lower case letters or numerals with individual words joined with a
+single underscore (e.g. "starting_lba"). There should be no leading or
+trailing underscore characters. The lsupd utility is essentially
+data\-mining in Linux's sysfs pseudo file system. Conveniently the naming
+convention used in the sysfs pseudo file system is also the 'snake_case'
+convention.
+.PP
+In the plain text, "single line per device" mode each line of lsupd output
+starts with a lsupd_locator. It is surrounded by square brackets and has a
+four element tuple with colon as a separator. For SCSI/ATA devices, its
+four elements are "h" for host_id, "c" for controller_id, "t" for target_id
+and "l" for LUN (Logical Unit Number). For NVMe devices the first element is
+the letter "N", followed by the char device node minor number, followed by
+the controller_id and finally the namespace_id. Many of these "id"s are
+discovered/enuerated by Linux, starting with 0 for the first found. The
+LUN and namespace_id are specified by the storage device and in the case
+of NVMe, the lowest namespace id is 1. In the JSON output, when devices
+or hosts/controllers are being listed, one of the first properties output
+is named "lscsi_locator" and it value is the string (including the
+surrounding square brackets) described in this paragraph.
+.PP
+The user interface to JSON functionality in this utility is heavily based on
+what has been done by Christian Franke and others in smartctl, a utility in
+the smartmontools package for getting S.M.A.R.T. information from disks and
+other storage devices.
+.PP
+This manpage discusses the \fI\-\-json[=JO]\fR and \fI\-\-js\-file=JFN\fR
+command line options. Notice that the argument to \fI\-\-json\fR is itself
+optional. In its shorter form the \fI\-\-json\fR option may either be
+\fI\-j\fR or \fI\-J\fR (lower case preferred if not already in use). The
+shorter form may also take an argument but an "=" must precede the \fIJO\fR
+argument with no spaces either side of the "=".
+.PP
+Some care has been taken with quotes in this manpage. Double quotes are used
+around JSON object names, single quotes are used for all other purposes.
+.PP
+This manpage is functionally equivalent to 'man sg3_utils_json' from the
+sg3_utils package. The JSON implementation is shared by lsupd and those
+utilities in sg3_utils that optionally output JSON.
+.SH ENVIRONMENT VARIABLES
+The SG3_UTILS_JSON_OPTS environment variable allows the user to override the
+default values of the \fIJO\fR settings. Those settings can again be overridden
+by the command line \fI\-\-json[=JO]\fR option. If the string associated with
+SG3_UTILS_JSON_OPTS cannot be parsed this error message is sent to
+stderr: 'error parsing SG3_UTILS_JSON_OPTS environment variable, ignore'.
+.SH OPTIONS
+Since the argument to \fI\-\-json[=JO]\fR is optional, in the shorter form
+there can be no space(s) between the option and its argument.
+.TP
+\fB\-j[=JO]\fR, \fB\-\-json\fR\fI[=JO]\fR
+\fIJO\fR is a string of zero or more characters whose order is not significant
+apart from the negation characters ('\-' is preferred). The negation character
+must appear immediately before the (boolean) feature it is toggling.
+.br
+In the short form the option letter may be other than \fI\-j\fR if that letter
+has already been used (\fI\-J\fR is preferred next). For example the sg_ses
+utility uses \fI\-j\fR for its 'join' operation. Also since the argument to
+the short form option is itself optional, there can be no spaces between the
+short form option, the "=", and \fIJO\fR, if it is given. Some short form
+examples: '-jl' requests JSON output (with no argument option) and whatever
+the '-l' short option means in the invoked utility; '-j=h' requests JSON
+output with some integers additional rendered as JSON strings of hex.
+.TP
+\fB\-J\fR, \fB\-\-js\-file\fR=\fIJFN\fR
+output is in JSON format and it is sent to a file named \fIJFN\fR. If that
+file exists then it is truncated. By default, the JSON output is sent to
+stdout.
+.br
+When this option is given, the \fI\-\-json[=JO]\fR option is implied and
+need not be given. The \fI\-\-json[=JO]\fR option may still be needed to
+set the \fIJO\fR parameter to non-default values.
+.br
+The short option may be other than \fI\-J\fR if that short option was already
+in use.
+.SH JSON CONTROL CHARACTERS
+Each \fIJO\fR string is made up of zero or more of the following JSON control
+characters.
+.TP
+\fB0\fR
+If pretty printing JSON output, tab to 2 spaces.
+.TP
+\fB2\fR
+If pretty printing JSON output, tab to 2 spaces.
+.TP
+\fB4\fR
+If pretty printing JSON output, tab to 4 spaces.
+.br
+This is the default tab setting for pretty printing JSON.
+.TP
+\fB8\fR
+If pretty printing JSON output, tab to 8 spaces.
+.TP
+\fB=\fR
+does nothing. May appear as first character of \fIJO\fR. This character is
+defined to make the short option form look better (e.g. '\-j=av').
+.TP
+\fB\-\fR
+negation character. Toggles the (boolean) sense of the following control
+character.
+.TP
+\fBe\fR
+this is a boolean control character for "exit status". If active an "exit
+status" field is placed at the end of the JSON output. The integer value
+of this field is the Unix exit status value that is return to the operating
+system when this utility exits. The value of 0 is a good exit (i.e. no
+errors detected).
+.br
+This boolean control character is default on (true).
+.TP
+\fBh\fR
+this is a boolean control character for 'hexadecimal'. Many values associated
+with SCSI are best (or at least historically) viewed in hexadecimal while
+JSON output prefers decimal integers (assumed to have a maximum size of 64
+bits, signed). The maximum size of most SCSI fields is 64 bit _unsigned_ .
+Also some SCSI fields are masks which are best viewed in hex. When this
+control character is active most (non\-trivial) fields that have an integer
+value instead receive a a sub\-object containing at least a "i" field with
+the integer value and a "hex" field with the corresponding hex value in a
+JSON string. That hex string has no hex decorations (i.e. no leading '0x'
+nor trailing 'h').
+.br
+This boolean control character is default off (false).
+.TP
+\fBk\fR
+this is a boolean control character for finer control of non\-pretty printed
+JSON output. If the 'p' control character is set on (true) then this option
+has no effect.
+.br
+If the 'p' control character is set off (false) and this control character is
+set off (false) then the single line JSON output contains some spaces for
+readability. If the 'p' control character is set off (false) and this control
+character is set on (true) then the JSON single line JSON output is 'packed'
+removing all unnecessary spaces.
+.br
+This boolean control character is default off (false).
+.TP
+\fBl\fR
+this is a boolean control character to control whether lead\-in fields are
+output. Lead\-in fields are at the start of the JSON output and include
+"json_format_version" and "utility_invoked" sub\-objects. The
+"utility_invoked" sub\-object includes "name", "version_date" string fields
+and an JSON array named "argv" with an entry for each command line argument.
+If the \fIo\fR control character is also active, then if available, the
+non\-JSON output (i.e. the original, plain text form) is placed in an
+array called "plain_text_output" with one element per line of 'normal' output.
+.br
+This boolean control character is default on (true).
+.TP
+\fBn\fR
+this is a boolean control character for "name_extra". It is used to provide
+additional information about the name it is a sub\-object of. The most
+common usage is to spell out an abbreviated name (e.g. a T10 name like 'SKSV'
+to 'Sense Key Specific Valid'). Another use is to note that a T10 field is
+obsolete and in which T10 standard it first became obsolete. Also if the
+named field's value is a physical quantity where the unit is unclear (e.g. a
+timeout) then "name_extra" can state that (e.g. 'unit: millisecond').
+Only some fields have associated "name_extra" data.
+.br
+This boolean control character is default off (false).
+.TP
+\fBo\fR
+this is a boolean control character to control whether normal (i.e.
+non\-JSON) lines of output are placed in a JSON array (one element per
+line of normal output) within the utility_invoked subject (see control
+character \fIl\fR). The name of the array is "plain_text_output". This
+control character is active even if the lead\-in fields control
+character (\fIl\fR) is negated.
+.br
+This boolean control character is default off (false).
+.TP
+\fBp\fR
+this boolean control character controls whether the JSON output
+is 'pretty printed' or sent in a relatively compact stream suitable
+for more efficient transmission over a communications channel.
+.br
+The pretty printed form of output has one JSON name with its associated
+integer, string or boolean value per line; and one array element per line.
+JSON objects and arrays that have an associated JSON object as their value,
+have their name on a separate line. These lines are indented with the
+current tab setting to indicate the level of nesting. Basically the pretty
+printed form is for human consumption.
+.br
+There are two forms of non\-pretty printed output, see the 'packed' control
+character ['k'].
+.br
+This boolean control character is default on (true).
+.TP
+\fBs\fR
+this boolean control character controls whether T10 field values that have
+a defined meaning are broken out with an added JSON sub\-object usually
+named "meaning". When active the field name has a sub\-object that contains
+at least an "i" field with the integer value of the field and a JSON string
+object, usually named "meaning", with a string that corresponds to the T10
+defined meaning of the value in the "i" field.
+.br
+This boolean control character is default on (true).
+.TP
+\fBv\fR
+this is an integer control character that controls the amount of debug output.
+It can be given multiple times to increase the level of JSON debug
+verbosity in the output.
+.br
+Note that this verbose control character is JSON specific while the
+\fI\-\-verbose\fR option (short form: fI\-v\fR often repeated: fI\-vvv\fR) that
+most utilities support is more general.
+.br
+This integer control character is set to 0 by default.
+.SH OUTPUT PROCESSING
+The default remains the same for all utilities that support the
+\fI\-\-json\fR option, namely the decoded information is sent to stdout in
+plain text form. Errors are reported to stderr and may cause the early
+termination of lsupd (e.g. command line option syntax error).
+.PP
+When the \fI\-\-json\fR option is given and no errors are detected, then
+only JSON is normally sent to stdout. As the SCSI response is parsed, a JSON
+representation is built as a tree in memory. After all other actions (perhaps
+apart from the final exit status report) that JSON tree is 'dumped' to
+stdout. This means if there is any non-JSON output sent to stdout that
+it will appear _before_ the JSON output.
+.PP
+If the 'o' control character is in the \fIJO\fR argument to the
+\fI\-\-json\fR option, then the former 'plain text' output is placed in a
+JSON array named "plain_text_output" within a JSON object
+named "utility_invoked".  Each line of the former plain text output is placed
+in its own element of the JSON array.
+.PP
+A JSON tree is built in memory as lsupd parses the data returned from the
+SCSI device (e.g. sg_vpd parsing a VPD page returned from a SCSI INQUIRY
+command). SCSI 'list's become JSON named arrays (e.g. in the Device
+Identification VPD page there is a 'Designation descriptor list' that
+becomes a JSON array named "designation_descriptor_list").
+.PP
+At the completion of lsupd that JSON tree is 'measured' taking into account
+the form of output (i.e. pretty-printed, single line or packed single line).
+For the pretty-printed JSON output, the size of each indentation in spaces is
+also given (i.e. the tab width). The JSON is then output to a
+single C string, then sent to stdout. If a NULL character (ASCII zero and C
+string terminator) somehow finds its way into a field that should (according
+to the spec) be space padded, then the JSON output may appear truncated.
+.PP
+Note that this JSON processing means that if lsupd is aborted for whatever
+reason then no JSON output will appear. With the normal, plain text output
+processing, some output may appear before lsupd aborts in such bad
+situations.
+.SH BOOLEAN OR 0/1
+In general, the JSON generated by this package outputs 1 bit SCSI fields as
+the integer value 0 (for false) and 1 (for true). This follows the SCSI
+convention which predates the common use of boolean. Also SCSI reserved
+fields are output as the integer value 0. Extensions to SCSI commands and
+associated data descriptors typically use parts of commands or data
+descriptors that were previously reserved.
+.SH INTERACTION WITH OTHER OPTIONS
+As stated above, the default output is in plain text form using 7 bit
+ASCII. The \fI\-\-json[=JO]\fR option is designed to be an alternative to that
+plain text form. There are other alternative output formats such as the
+response output as a hexadecimal sequence of bytes or in 'raw' binary output;
+both of those take precedence over the \fI\-\-json[=JO]\fR option. Other
+specialized output format (e.g. 'sg_inq \-\-export') will usually take
+precedence over JSON output.
+.PP
+There is typically only one form of JSON output so options like
+\fI\-\-brief\fR and \fI\-\-quiet\fR are ignored in the JSON output. In some
+cases (i.e 'sg_inq \-\-descriptors') the JSON output is expanded.
+.SH ERRORS
+No attempts have been made to translate errors into JSON form, apart from the
+final "exit_status" JSON object where a value of 0 means 'no errors'. Exit
+status values indicating a problem range from 1 to 255.
+.PP
+Otherwise, when a error is detected while JSON output is selected, the error
+message is sent to stderr in plain text form. Typically once an error is
+detected lsupd will exit, first dumping the JSON in\-memory tree as
+discussed above and a non\-zero exit status will be set. The JSON output will
+be well formed but missing any fields or list elements following the point
+that the error was detected.
+.PP
+The summary is that when JSON output is selected and an error occurs lsupd
+will process the error the same way as it would if JSON output had
+not been selected. In most cases error messages, in plain text form,
+are sent to stderr.
+.SH AUTHORS
+Written by Douglas Gilbert.
+.SH "REPORTING BUGS"
+Report bugs to <dgilbert at interlog dot com>.
+.SH COPYRIGHT
+Copyright \(co 2023 Douglas Gilbert
+.br
+This software is distributed under the GPL version 2 or the BSD\-2\-Clause
+license. There is NO warranty; not even for MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.
+.SH "SEE ALSO"
+.B sg3_utils_json(sg3_utils), smartctl(smartmontools)
