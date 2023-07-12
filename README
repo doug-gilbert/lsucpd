@@ -1,4 +1,136 @@
 
+                               lsupd
+                               =====
+
+Introduction
+------------
+This utility belongs to the "ls*" family of utilities found in Linux whose
+names derive from the Unix ls utility (command) for listing files and
+directories. In the case of lsupd, the "upd" is an abbreviation for USB-C
+Power Delivery (PD) which is optional on USB Type-C interconnects. A typical
+USB-C interconnect consists of a power adapter (e.g. an AC 65 Watt power
+adapter) and a consumer of power (e.g. a laptop). Taking those examples,
+both the power adapter and the laptop will have female USB-C connectors (also
+known as receptacles). A USB-C cable will complete the circuit with a male
+USB-C plug on either end.
+The lsupd utility will list local USB-C ports (e.g. each female USB-C
+connector on a laptop) with one line output for each port. Note that not
+all USB-C ports support PD. For those ports that do support PD that are
+also connected to another USB-C PD device, a "port<n>-partner" is shown
+to the right of each line output by lsupd. The direction that power is
+flowing is indicated by "===>" or "<===" between each port<n> and
+port<n>-partner.
+
+
+USB-C PD details
+----------------
+There are two USB standards covering this area, recent versions are:
+   1) USB Type-C Cable and Connector Specification, Release 2.1
+   2) USB Power Delivery Specification, Revision 3.1, Version 1.8
+      - this is optional, so USB-C ports don't necessarily support PD
+
+Both these documents are intimidating in size (446 and 870 pages
+respectively) but are freely available at usb.org in the Document library.
+Both documents have extensive "Terms and Abbreviations" sections (1.5 and
+1.6 respectively) that are very useful references because their are a lot
+of obscure terms. For example the PD document summarizes the difference
+between SOP' packet and SOP'' packet.
+
+USB.org's use of release, revision and version defies logic. The above
+standard names are taken from their front pages. Interconnects complying
+with 1) do not necessarily support 2) (i.e. PD). In the absence of PD,
+resistors on the CC lines determine which end is the source/host and which
+end is the the sink/device. USB PD Revision 1 is history (an experiment that
+failed). USB PD Revision 2 introduced fixed Vbus voltages up to 20 Volts and
+with an appropriate ("Emarked") cable could carry 5 Amps for 100 Watts. USB
+PD Revision 3 introduced the Programmably Power Supply (PPS) optional
+capability which included current limiting (CL) by the source. Then USB PD
+Revision 3.1 introduced "Extended Power Range" (EPR) with fixed voltages at
+28, 36 and 48 Volts. To avoid confusion, all active PD standards prior to
+Revision 3.1 were dubbed "Standard Power Range" (SPR). EPR also has a (sink)
+adjustable voltage supply (AVS) range of 15 to 48 Volts _without_ current
+limiting.
+
+There are two power roles: source (power provider) and sink (power consumer).
+USB-C power banks and laptops can often be both, but a single port cannot
+only be one at a time. The USB PD term for this is "Dual Role Power" (DRP)
+but most laptops, at this time, are not true DRP in the USB PD sense; they
+tend to fall back to USB-A 5 Volt source/host mode when talking to a USB
+memory key which is very unlikely to support USB PD. In a similar way there
+are two data roles: host and device. A USB PD port that can play either role
+is called "Dual Role Data" (DRD).
+
+Some other related jargon is UFP for upward facing port and DFP for
+downward facing port. The mental picture here is with the USB host at the
+top of a hierarchy with USB devices at the bottom (i.e. the leaves) with
+possibly a USB hub in the middle. So an UFP on a hub connects to a DFP on
+the host (e.g. a laptop).
+
+Electricity basics
+------------------
+All electrical units are metric, assuming power is not given in horsepower.
+The SI unit for energy is a joule but that is a bit small as we often talk
+about kiloWatt-hours, MegaWatt-hours and GigaWatt-hours. A joule is a
+Watt-second (i.e. one Watt for one second) so a Watt-hour is 3,600 joules,
+a kiloWatt-hour is 3,600,000 joules, etc. That naming reflects this formula:
+    E = P . t       (1)
+where E is in joules, P is in Watts and t is in seconds. [The dot is for
+multiply.]
+
+The next formula is for electrical power:
+    P = V . I       (2)
+where P is in Watts, V is in volts and I is current in Amps. The mechanical
+analogy for Volts and Amps is to a pipe carrying some fluid. The voltage is
+related to pressure and the current is the amount of fluid moving past a
+cross-section of the pipe. Further the "fluid" in the case of electricity
+is made up of electrons. Around 6.2 x 10^18 electrons is called a Coulomb
+and a flow of one Coulomb per second is called an Amp. 
+
+All electrical conductors have resistance which converts part of the current
+passing through them to heat. That is usually wasteful (unless it is winter).
+Georg Ohm is credited with the formula that bears his name:
+   V = I . R	   (3)
+where V is in Volts, I is current in Amps and R is on Ohms.
+
+Combining formula (2) and (3) by substituting V gives;
+  P = I^2 . R      (4)
+
+This is sometimes called the "i-squared-r" formula that even Elon Musk knows
+about. Importantly it is the amount of power lost in a conductor or cable.
+Resistance typically doubles when length (of a cable) doubles. Also for a
+PD cable power is lost both in the Vbus wire and the Ground wire (which
+usually includes the shield). So that is two times the length of the cable.
+Formula (4) tells us to reduce I as much as possible to reduce power lost
+on the cable. Formula (2) tells us when we reduce I we must increase V to
+maintain the same P sent across the cable. [For completeness:
+superconductors have zero resistance, typically at cryrogenic temperatures.]
+
+Direct Current (DC) refers to the situation where if V and I change, it
+is relatively slow and not periodic. In DC circuits typically the V
+(voltage) supplying power to electronics moves as little as possible.
+In Alternating Current (AC) both V and I vary periodically (think
+sine waves). Typically for houses incoming electrical power is at 50 or
+60 Hertz AC. One Hertz is one cycle per second. Formulas (1) to (4) still
+apply but become much more difficult in practice because V and I are
+varying periodically.
+
+Electric vehicles (EVs) typically have two electrical systems, a high
+voltage one at 400 or 800 Volts (DC) for traction; and a low voltage
+one for everything else. The low voltage electrical system has been
+traditionally set at 12 Volts DC (and 6 Volts 70 years ago). Elon Musk
+says that his company can save over 100 kg of copper in cables by
+increasing the low voltage system from 12 to 48 Volts.
+
+Higher voltages can be dangerous for humans. It is generally considered
+that voltages above 60 Volts (DC) can be harmful. In practice (allowing
+for some overvoltage situations) 48 Volts has been chosen as the highest
+safe nominal voltage (DC). Both the car industry (for non-traction
+purposes) and USB-C PD EPR have chosen 48 Volts DC as their highest
+delivery voltage. These are for systems that humans may come in contact
+with.
+
+xxxxxxxxxxxxxxxxxxxx
+
 For a description of this utility see:
   https://sg.danny.cz/scsi/lsscsi.html
 or

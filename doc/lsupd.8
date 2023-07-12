@@ -4,7 +4,7 @@ lsscsi \- list USB-C Power Delivery objects
 .SH SYNOPSIS
 .B lsupd
 [\fI\-\-caps\fR] [\fI\-\-help\fR] [\fI\-\-json[=JO]\fR]
-[\fI\-\-js\-file=JFN\fR] [\fI\-\-sysfsroot=PATH\fR]
+[\fI\-\-js\-file=JFN\fR] [\fI\-\-long\fR] [\fI\-\-sysfsroot=PATH\fR]
 [\fI\-\-verbose\fR] [\fI\-\-version\fR] [\fIFILTER ... \fR]
 [\fIH:C:T:L\fR]
 .SH DESCRIPTION
@@ -12,8 +12,40 @@ lsscsi \- list USB-C Power Delivery objects
 Despite appearances, this utility has nothing to do with UPDates. The first
 part of its name (i.e. "ls") comes from the Unix command name to list
 file names (including directories). The trailing "upd" is an abbreviation
-of "USB-C Power Delivery". It joins a growing family of "ls" utilities such
-as lsblk, lscpu, lsfd, lsmem, lsof, lspci, lsscsi and lsusb.
+of "USB-C Power Delivery". It joins a growing family of Linux "ls" utilities
+such as lsblk, lscpu, lsfd, lsmem, lsof, lspci, lsscsi and lsusb.
+.PP
+USB Power Delivery is often associated with the 24 pin USB Type C connector
+typically shortened to USB\-C. Sysfs in Linux has two classes that cover
+this facility: /sys/class/typec and /sys/class/usb_power_delivery. The
+/sys/class/typec directory contains 'port<n>' and 'port<n>\-partner' entries.
+A "port" is a USB type C endpoint and with the common USB-C male\-to\-male
+cabling, aport corresponds to female USB\-C connectors also knows as
+receptacles. Modern laptops often have two or more female USB-C receptacles
+which Linux will number: port0, port1, etc. In the future entries in the
+/sys/class/typec/port0/physical_location directory should accurately describe
+where port 0 is (but not in lk 6.4).
+.PP
+Strictly speaking USB PD refers to use of a computer protocol (called BMC)
+along a CC line that enables a maximum power of 100 Watts (20 Volts at 5
+Amps) in what is now called SPR (the Standard Power Range). USB PD revision
+3.1 increased that with the Extended Power Range (EPR) to 240 Watts, 48 Volts
+at 5 Amps. Notice that is a maximum, and many conditions must be met before
+240 Watts can be supplied. USB Type C can function without USB PD, with the
+protocol on the CC lines replaced by resistors. In this mode Type C can
+supply a maximum of 5 Volts at 3 Amps (15 Watts). Many USB\-C devices such
+as USB flash (memory) keys use non\-PD mode.
+.PP
+USB PD endpoints are named pd<num> and are found in the
+/sys/class/usb_power_delivery directory. Currently only the source and sink
+capabilities (if supported) are listed under each pd<num> directory. Adding
+entries derived from the most recent PD RDO (request data object) command
+would be really helpful.
+.PP
+The default output of this utility is one line per local USB Type C port
+on the host machine. If that port is in use (e.g. connector to a USB\-C power
+adpater via a male to male cable) then (port) "partner" information may appear
+to the right of line for the corresponding port.
    ....
 .SH OPTIONS
 Arguments to long options are mandatory for short options as well. The options
@@ -45,187 +77,16 @@ Send the JSON output to a file named \fIJFN\fR instead of stdout. When
 this option is given, the \fI\-\-json\fR option is not required unless
 JSON settings in \fIJO\fR are needed.
 .br
-See the accompanying lsscsi_json(8) manpage.
-.TP
-\fB\-k\fR, \fB\-\-kname\fR
-Use Linux default algorithm for naming devices (e.g. block major 8, minor 0
-is "/dev/sda") rather than the "match by major and minor" in the "/dev"
-directory as discussed above.
-.br
-Said another way: Linux kernel drivers will create device nodes (Unix
-special files under the "/dev" directory) of 'char' or 'block' type
-at startup. This allows user programs to access this storage. One such
-program called udev has the ability to
-.B change
-those special change file names which is what the user will see henceforth
-apart from sysfs which still uses the original name (i.e. the name soon
-after bootup).
-.br
-This option should be seldom needed.
-.TP
-\fB\-L\fR, \fB\-\-list\fR
-Output additional information in <attribute_name>=<value> pairs, one pair
-per line preceded by two spaces. This option has the same effect as '\-lll'.
+See the accompanying lsupd_json(8) manpage.
 .TP
 \fB\-l\fR, \fB\-\-long\fR
-Output additional information for each SCSI device (host). Can be
-used multiple times for more output in which case the shorter option
-form is more convenient (e.g. '\-lll'). When used three times (i.e. '\-lll')
-outputs SCSI device (host) attributes one per line; preceded by
-two spaces; in the form "<attribute_name>=<value>".
-.TP
-\fB\-U\fR, \fB\-\-long\-unit\fR
-Output logical unit name in full, if available. It replaces the normal
-vendor, product and revision strings given in the single logical unit per
-line mode. If no logical unit name is found "none" is printed. If the
-logical unit name is long (e.g. a UUID) then following fields are pushed
-further to the right as required. This option is functionally equivalent to
-the '\-uuu' option.
-.br
-If the option is used twice (e.g. '\-UU') then EUI, NAA, UUID and T10 vendor
-ID formats are prefixed by "eui.", "naa.", "uuid." and "t10." respectively.
-Note that SCSI name format used by iSCSI should already be prefixed
-by 'iqn.'. Using the '\-\-unit' option 4 or more times (e.g. '\-uuuu') will
-have the same action as '\-UU'.
-.br
-\fI\-\-long_unit\fR is also an acceptable form when invoking this option.
-.TP
-\fB\-x\fR, \fB\-\-lunhex\fR
-when this option is used once the LUN in the tuple (at the start of each
-device line) is shown in "T10" format which is up to 16 hexadecimal
-digits. It is prefixed by "0x" to distinguish the LUN from the decimal
-value shown in the absence of this option. Also hierarchal LUNs are
-shown with a "_" character separating the levels. For example the
-two level LUN: 0x0355006600000000 will appear as 0x0355_0066. If this
-option is given twice (e.g. using the short form: '\-xx') then the full
-16 hexadecimal digits are shown for each LUN, prefixed by "0x".
-.br
-For NVMe, the namespace identifier (nsid) is shown in the "L" position. The
-nsid is a 32 bit unsigned quantities with 0x0 and 0xffffffff reserved.
-Without this option, the nsid is shown in decimal. When this option is used
-once the nsid is output in hex with a lead 0x and with up to 3 leading zeros.
-When this option is used twice the nsid is output in hex with up to 7 leading
-zeros.
-.TP
-\fB\-N\fR, \fB\-\-no\-nvme\fR
-this option excludes NVMe devices and controllers for the output. This option
-may be needed to stop NVMe device output interfering with specific format
-output like that produced when the \fI\-\-classic\fR option is used.
-.br
-To only show NVMe devices, use 'lsscsi N', to only show NVMe controllers,
-use 'lsscsi \-H N'.
-.TP
-\fB\-D\fR, \fB\-\-pdt\fR
-this option displays the SCSI Peripheral Device Type (PDT) in hex preceded
-by "0x". For NVME namespaces "0x0' is displayed which corresponds to a
-disk ("Direct Access Device" or SSD). In single line output this hex PDT
-replaces the device type abbreviation (e.g. "0x0     " replaces "disk    ")
-and appears after the tuple.
-.TP
-\fB\-p\fR, \fB\-\-protection\fR
-Output target (DIF) and initiator (DIX) protection types.
-.TP
-\fB\-P\fR, \fB\-\-protmode\fR
-Output effective protection information mode for each disk device.
-.TP
-\fB\-i\fR, \fB\-\-scsi_id\fR
-outputs the udev derived matching id found in /dev/disk/by\-id/scsi* .
-This is only for disk (and disk like) devices. If no match is found
-then "dm\-uuid\-mpath*" and "usb*" are searched in the same directory.
-If there is still no match then the /sys/class/block/<disk>/holders
-directory is searched. The matching id is printed following the device
-name (e.g.  /dev/sdc) and if there is no match "\-" is output. Note
-that only disk (like) devices are matched by this option; so, for
-example, a SCSI enclosure will have an identifier of '\-'.
-.br
-Prior to revision 164 the first match in /dev/disk/by\-id/scsi* was
-printed. A change was added at that point to check for identifiers
-in a specific order as some are considered "stronger" than others.
-See the ORDER OF SCSI IDENTIFIERS section below.
-.br
-Note that the identifier output is prefixed by one character from this
-string: "328S10" to indicate what type of identifier is being shown. Those
-values are explained in the ORDER OF SCSI IDENTIFIERS section below.
-To show the identifier without that leading value, use \fI\-\-scsi_id\fR
-twice (or simply \fI\-ii\fR).
-.TP
-\fB\-s\fR, \fB\-\-size\fR
-Print disk capacity in plain text form. When given once, normal base
-10 SI units are used as a prefix for 'B' which is bytes (aka octets).
-For example MB, GB and TB stand for 10^6, 10^9 and 10^12 bytes
-respectively. When given twice, IEC 80000\-3 prefixes for 'B' are used;
-for example MiB, GiB and TiB stand for 2^20, 2^30 and 2^40
-bytes respectively. The output is rounded to 3 or less significant
-figures in order to fit on a single line.
-It will also output the size of RBC devices, CD/DVD media and host
-managed ZBC disks. Host aware ZBC disks have their "peripheral device
-type" set to 0 (the same as normal disks) so their size is output.
-.br
-If given three times (short form is the more convenient: '\-sss') then
-the disk capacity as a logical block count is given. This is an exact
-figure in decimal reported by the storage device at discovery. Discovery
-is typically just after boot time, or when it was last attached if the
-storage device is removable.
-.br
-To unclutter the single line per device mode the \fI\-\-brief\fR option
-combined with this option should help.
+xxxxxxxxUse Linux default algorithm for naming devices (e.g. block major 8, minor 0
+is "/dev/sda") rather than the "match by major and minor" in the "/dev"
+directory as discussed above.
 .TP
 \fB\-y\fR, \fB\-\-sysfsroot\fR=\fIPATH\fR
 assumes sysfs is mounted at PATH instead of the default '/sys' . If this
 option is given PATH should be an absolute path (i.e. start with '/').
-.TP
-\fB\-S\fR, \fB\-\-sz\-lbs\fR
-Print disk capacity as a number of logical blocks (which is the same
-as '\-sss'). When used twice a comma is added followed by the logical
-block size in bytes. It should be a number like 512 or 4096.
-.br
-If the logical block size cannot be found (e.g. because the version of
-Linux predates the /sys/block/<dev_name>/queue directory) then the number
-of 512 byte blocks followed comma and then '512' is output irrespective of
-what the true logical block size of the device is. This special case
-action occurs whether this option is given one or more times.
-.br
-To unclutter the single line per device mode the \fI\-\-brief\fR option
-combined with this option should help.
-.TP
-\fB\-t\fR, \fB\-\-transport\fR
-Output transport information. This will be target related information or,
-if \fI\-\-hosts\fR is given, initiator related information. When used without
-\fI\-\-list\fR, a name or identifier (or both) are output on a single line,
-usually prefixed by the type of transport. For devices this information
-replaces the normal vendor, product and revision strings. When the
-\fI\-\-list\fR option is also given then additionally multiple lines
-of attribute_name=value pairs are output, each indented by two spaces. See
-the section on transports below.
-.TP
-\fB\-u\fR, \fB\-\-unit\fR
-Output logical unit name, if available. If this option is given once or
-twice, then the 30 character field where the vendor, product and revision
-strings are usually placed is expanded to 32 characters and replaced by the
-logical unit name. If no logical unit name is found "none" is printed.
-The first found of the NAA, EUI\-64 or SCSI name string is output unless a
-SCSI name string is found and the associated target port indicates the
-iSCSI protocol, in which case the SCSI name string is preferred. Finally
-if there is no match on the above and a T10 Vendor ID descriptor is found
-then it is used.
-.br
-If the name cannot fit in the 32 character field then it is truncated to
-the right and a trailing '_' character is used to alert the reader to the
-truncation. The 32 character width is chosen since that is large enough to
-hold 16 byte NAA or EUI\-64 identifiers. However SCSI name strings as used
-by iSCSI can be larger than that.
-.br
-If this option is used twice then this field is also 32 character wide. If
-the logical unit name cannot fit then it will be truncated to the left and
-a leading '_' character is used to alert the reader to the truncation.
-.br
-If this option is used three times the whole logical unit name is
-output, followed by several spaces.
-.br
-In order for this option to work, it needs a Linux kernel from and including
-3.15 . It accesses the sysfs vpd_pg83 file for the device in question. Old
-SCSI and ATA (SATA) equipment may not provide this information. If it is
-provided by ATA (SATA) then it will be the WWN.
 .TP
 \fB\-v\fR, \fB\-\-verbose\fR
 outputs directory names where information is found. Use multiple times for
@@ -235,231 +96,6 @@ more output.
 outputs version information then exits. If used once outputs to stderr; if
 used twice outputs to stdout and shortens the date to yyyymmdd numeric
 format. The first number in the version string is the release number.
-.TP
-\fB\-w\fR, \fB\-\-wwn\fR
-additionally outputs the WWN for disks. The World Wide Name (WWN) is
-typically 64 bits long (16 hex digits) but could be up to 128 bits long.
-To indicate the WWN is hexadecimal, it is prefixed by "0x". Originally this
-option looked at the '/dev/disk/by\-id/wwn\-*' symlinks to scsi devices;
-but this was changed to '/dev/disk/by\-id/scsi\-*' as the latter were more
-stable (i.e. less likely to change from one boot to the next).
-.br
-If this option is used twice then the original action takes place. In other
-words the '/dev/disk/by\-id/wwn\-*' symlinks to scsi devices are used.
-.SH TRANSPORTS
-This utility lists SCSI devices which are known as logical units (LU) in
-the SCSI Architecture Model (ref: SAM\-5 at https://www.t10.org) or hosts
-when the \fI\-\-hosts\fR option is given. A host is called an initiator in
-SAM\-5. A SCSI command travels out via an initiator, across some transport
-to a target and then onwards to a logical unit. A target device may contain
-several logical units. A target device has one or more ports that can be
-viewed as transport end points. Each FC and SAS disk is a single target
-that has two ports and contains one logical unit. If both target ports
-on a FC or SAS disk are connected and visible to a machine, then lsscsi
-will show two entries. Initiators (i.e. hosts) also have one or more ports
-and some HBAs in Linux have a host entry per initiator port while others
-have a host entry per initiator device.
-.PP
-When the \fI\-\-transport\fR option is given for devices (i.e.
-\fI\-\-hosts\fR not given) then most of the information produced by lsscsi
-is associated with the target, or more precisely: the target port, through
-which SCSI commands pass that access a logical unit.
-.PP
-Typically this utility provides one line of output per "device" or host.
-Significantly more information can be obtained by adding the \fI\-\-list\fR
-option. When used together with the \fI\-\-transport\fR option, after
-the summary line, multiple lines of transport specific information in the
-form "<attribute_name>=<value>" are output, each indented by two spaces.
-Using a filter argument will reduce the volume of output if a lot of
-devices or hosts are present.
-.PP
-The transports that are currently recognized are: IEEE 1394, ATA, FC,
-iSCSI, SAS, SATA, SPI, SRP and USB.
-.PP
-For IEEE 1394 (a.k.a. Firewire and "SBP" when storage is involved), the
-EUI\-64 based target port name is output when \fI\-\-transport\fR is given,
-in the absence of the \fI\-\-hosts\fR option. When the \fI\-\-hosts\fR
-option is given then the EUI\-64 initiator port name is output. Output on
-the summary line specific to the IEEE 1394 transport is prefixed by "sbp:".
-.PP
-To detect ATA and SATA devices a crude check is performed on the driver
-name (after the checks for other transports are exhausted). Based on the
-driver name either the ATA or SATA transport type is chosen. Output on
-the summary line is either "ata:" or "sata:". A search is made for an
-associated vpd_pg83 file in sysfs, if found it may contain the device's
-WWN which is output if present. The WWN will not appear in Linux kernels
-before 3.15 and with old PATA and SATA devices. Most device and hosts
-flagged as "ata:" will use the parallel ATA transport (PATA). For SATA
-devices that are attached via a SAS expander, see the SAS paragraph below.
-.PP
-For Fibre Channel (FC) the port name and port identifier are output
-when \fI\-\-transport\fR is given. In the absence of the \fI\-\-hosts\fR
-option these ids will be for the target port associated with the
-device (logical unit) being listed. When the \fI\-\-hosts\fR option is
-given then the ids are for the initiator port used by the host. Output
-on the summary line specific to the FC transport is prefixed by "fc:".
-If FCoE (over Ethernet) is detected the prefix is changed to "fcoe:".
-.PP
-For iSCSI the target port name is output when \fI\-\-transport\fR is given,
-in the absence of the \fI\-\-hosts\fR option. This is made up of the
-iSCSI name and the target portal group tag. Since the iSCSI name starts
-with "iqn" no further prefix is used. When the \fI\-\-hosts\fR option
-is given then only "iscsi:" is output on the summary line.
-.PP
-For Serial Attached SCSI the SAS address of the target port (or initiator
-port if \fI\-\-hosts\fR option is also given) is output. This will be a naa\-5
-address. For SAS HBAs and SAS targets (such as SAS disks and tape drives)
-the SAS address will be world wide unique. For SATA disks attached to a
-SAS expander, the expander provides the SAS address by adding a non zero
-value to its (i.e. the expander's) SAS address (e.g. expander_sas_address +
-phy_id + 1). SATA disks directly attached to SAS HBAs seem to have an
-indeterminate SAS address. Output on the summary line specific to the SAS
-transport is prefixed by "sas:".
-.PP
-For SATA devices, see the paragraph above on ATA devices. As noted in the
-previous paragraph, SATA devices attached to SAS expanders will display a
-manufactured SAS transport address (manufactured by the expander) rather
-than the SATA device's WWN.
-.PP
-For the SCSI Parallel Interface (SPI) the target port identifier (usually
-a number between 0 and 15 inclusive) is output when \fI\-\-transport\fR is
-given, in the absence of the \fI\-\-hosts\fR option. When the \fI\-\-hosts\fR
-option is given then only "spi:" is output on the summary line.
-.PP
-For the PCIe transport (a.k.a. PCI Express) there at two possible storage
-types: NVMe and SOP/PQI (SCSI over PCIe). There are very few examples of the
-latter currently so this utility concentrates on NVMe. NVMe uses its own
-command set and not SCSI but has many things in common. Rather than
-re\-invent everything currently in use that SCSI has accumulated over nearly
-40 years, NVMe is beginning to use some parts of SCSI. A recent example is
-the SES\-3 standard for enclosure management which has been adopted by NVMe.
-In SCSI a SES device is a logical unit with a peripheral device type (PDT)
-of 0xd (for enclosure) so it will appear when the lsscsi utility is invoked
-without any options. In NVMe is seems that an enclosure with appear as
-attached to the management interface (MI) of a NVMe controller. This means
-it should appear when "lsscsi \-\-hosts" is invoked. It is unclear whether
-such a NVMe controller can have any storage namespaces associated with
-it. The sg_ses utility (in the sg3_utils package) can then be given that NVMe
-controller's device name (e.g. /dev/nmve1).
-.br
-When the \fI\-\-transport\fR option is given, after "pcie" the NVMe
-controller's subsystem vendor id and device id are output, separated by a
-colon (e.g. "pcie 0x8086:0x390a").
-.PP
-For the SCSI RDMA Protocol (SRP) the IB (InfiniBand) port's GUID is given.
-As an example, it has a form like this: 0002:c903:00fa:abcd .
-.PP
-When a USB transport is detected, the summary line will contain "usb:"
-followed by a USB device name. The USB device name has the
-form "<b>\-<p1>[.<p2>[.<p3>]]:<c>.<i>" where <b> is the USB bus number, <p1>
-is the port on the host. <p2> is a port on a host connected hub, if present.
-If needed <p3> is a USB hub port closer to the USB storage device. <c>
-refers to the configuration number while <i> is the interface number. There
-is a separate SCSI host for each USB (SCSI) target. A USB SCSI target may
-contain multiple logical units. Thus the same "usb: <device_name>" string
-appears for a USB SCSI host and all logical units that belong to the USB
-SCSI target associated with that USB SCSI host.
-.SH LUNS
-For historical reasons and as used by several other Unix based Operating
-Systems, Linux uses a tuple of integers to describe (a path to) a SCSI
-device (also know as a Logical Unit (LU)). The last element of that tuple
-is the so\-called Logical Unit Number (LUN). And originally in SCSI a
-LUN was an integer, at first 3 bits long, then 8 then 16 bits. SCSI LUNs
-today (SAM\-5 section 4.7) are 64 bits but SCSI standards now consider
-a LUN to be an array of 8 bytes.
-.PP
-Up until 2013, Linux mapped SCSI LUNs to a 32 bit integer by taking the
-first 4 bytes of the SCSI LUN and ignoring the last 4 bytes. Linux treated
-the first two bytes of the SCSI LUN as a unit (a word) and it became the
-least significant 16 bits in the Linux LUN integer. The next two bytes of
-the SCSI LUN became the upper 16 bits in the Linux LUN integer. The rationale
-for this was to keep commonly used LUNs small Linux LUN integers. The most
-common LUN (by far) in SCSI LUN (hex) notation is 00 00 00 00 00 00 00 00
-and this becomes the Linux LUN integer 0. The next most common LUN is
-00 01 00 00 00 00 00 00 and this becomes the Linux LUN integer 1.
-.PP
-In 2013 it is proposed to increase Linux LUNs to a 64 bit integer by extending
-the mapping outlined above. In this case all information that is possible
-to represent in a SCSI LUN is mapped a Linux LUN (64 bit) integer. And the
-mapping can be reversed without losing information.
-.PP
-This version of the utility supports both 32 and 64 bit Linux LUN integers.
-By default the LUN shown at the end of the tuple commencing each line is
-a Linux LUN as a decimal integer. When the \fI\-\-lunhex\fR option is given
-then the LUN is in SCSI LUN format with the 8 bytes run together, with the
-output in hexadecimal and prefixed by '0x'. The LUN is decoded according
-to SAM\-5's description and trailing zeros (i.e. digits to the right) are not
-shown. So LUN 0 (i.e. 00 00 00 00 00 00 00 00) is shown as 0x0000 and
-LUN 65 (i.e. 00 41 00 00 00 00 00 00) is shown as 0x0041.
-If the \fI\-\-lunhex\fR option is given twice then the full 64 bits (i.e. 16
-hexadecimal digits) are shown.
-.PP
-If the \fI\-\-lunhex\fR option is not given on the command line then the
-environment variable LSSCSI_LUNHEX_OPT is checked. If LSSCSI_LUNHEX_OPT is
-present then its associated value becomes the number of times the
-\fI\-\-lunhex\fR is set internally. So, for
-example, 'LSSCSI_LUNHEX_OPT=2  lsscsi' and 'lsscsi \-xx' are equivalent.
-.SH ORDER OF SCSI IDENTIFIERS
-This section only applies to the \fI\-\-scsi_id\fR option and only for
-disk like devices (e.g. not tapes nor enclosures). There are potentially
-several SCSI identifiers and from revision 164 they are checked in the
-following order and only the first found is output.
-.PP
-The SCSI identifier preference order is:
-.PP
-  \fB3\fR : NAA based (Network address Authority)
-.PP
-  \fB2\fR : EUI\-64 based
-.PP
-  \fB8\fR : SCSI name string (e.g. iSCSI: iqn.1998\-01.com.zzware.iscsi:name1)
-.PP
-  \fBS\fR : serial number from SCSI VPD page 0x80
-.PP
-  \fB1\fR : T10 Vendor Identifier
-.PP
-  \fB0\fR : Vendor Specific
-.br
-Those numbers prefixing each entry are the SCSI 'Designator Types' found
-in the definition of the Device Identification VPD page (0x83) in SPC\-3,
-SPC\-4 and SPC\-5. The 'S' of course if not a number and it refers to
-a different VPD page: the Serial Number VPD page (0x80).
-.PP
-There is a more general \fI\-\-wwn\fR option that should apply to almost all
-devices. The term "WWN" (world\-wide name) comes from the ATA and NVMe
-standards and corresponds to the "Logical Unit (LU) name" in SCSI. The LU
-name in SCSI tends to change by transport. For SAS the LU name is the LU's
-NAA identifier.
-.PP
-Plus there the \fI\-\-unit\fR and the \fI\-\-long\-unit\fR options that may
-be helpful in uniquely identifying storage devices.
-.SH SYSFS VPD PAGES
-Most of the numerical identifiers (and iSCSI url type strings) come from the
-SCSI INQUIRY command's Device Identification VPD (vital product data) page.
-It is one of many VPD pages. These VPD pages are essentially constant (they
-can be changed in extraordinary situations) and are read by the SCSI
-subsystem when a SCSI device is attached to the system. Modern versions of
-Linux make copies of those vpd pages available in the sysfs pseudo file
-system. They are binary files with names like "vpd_pg83" where 83 is the
-numerical identifier of the Device Identification VPD page (in hex).
-.PP
-The sg_inq and sg_vpd utilities in the sg3_utils package can decode those
-pages. Currently VPD pages 00 (list of supported VPD pages), 80 (serial
-number), 83 (device identification (DI)) and 89 (ATA Information) are
-available.  More pages may appear in the future. Root permissions are
-not required to access these pages. Using sg_vpd with dev/sg3 as an
-example, the following invocation will decode sg3's DI page:
-.PP
-  sg_vpd \-\-raw \-\-inhex=/sys/class/scsi_generic/sg3/device/vpd_pg83
-.PP
-which can be shortened to:
-.PP
-  sg_vpd \-rI /sys/class/scsi_generic/sg3/device/vpd_pg83
-.PP
-Note that the DI VPD page contains identifiers for both a device (a
-Logical Unit (LU) in SCSI jargon) and the target device that contains
-that LU. A target may contain one or more LUs and LUs are often disks.
-A target is the (far) endpoint of the transport protocol in use, while
-the initiator is the near end of that transport.
 .SH EXAMPLES
 Information about this utility including examples can also be found at:
 https://sg.danny.cz/scsi/lsscsi.html .
@@ -471,10 +107,9 @@ pins are used to carry power which could be as large as 240 Watts (48 Volts
 at 5 Amps DC).
 .PP
 USB-C Power Delivery (PD) has almost nothing to do with the rest of USB,
-time to forget about "hosts" and "devices" and instead think about "sources"
-and "sinks". Since USB PD revision 2, both sources and sinks may not be "USB
-Communication Capable" which means possibly no D+ or D- and no "superspeed"
-signals.
+USB "hosts" and "devices" are a secondary consideration (or not present).
+Instead, us USB-C PD "sources" (providers of power) and "sinks" (consumers
+of power) are the primary concepts.
 .PP
 USB PD signalling takes place over the CC line (Configuration Control) which
 not only determines which end is the PD source and which is the PD sink, but
@@ -483,7 +118,7 @@ In the USB-C receptacle (e.g. the socket on the side of a laptop), there are
 two CC lines called CC1 and CC2. In the mating USB-C plug (e.g. one end of a
 USB-C male to male cable) the same two lines are called CC and Vconn. Why
 aren't the same names used? That is part of the excitement with reversible
-cables! USB-C PD cables are reversible in two sense: each plug can be taken
+cables! USB-C PD cables are reversible in two senses: each plug can be taken
 out and rotated 180 degrees and re\-inserted; the other sense is that each
 end of the cable is the same, so the cable ends can be switched around.
 For naming the PD relevant lines, it is best to think about CC and Vconn, CC
@@ -496,14 +131,14 @@ A USB\-C PD source provides power, delivered between the Ground pins and the
 VBus pins. There are four of each (i.e. pins) while Ground may also be
 carried on the outer shield in the cable which is connected to the outer
 shell in USB\-C plugs and receptacles. Notice that the USB-C plug (male)
-shell fits snugly inside the USB-C receptacle (female connector)
+shell fits snugly inside the USB-C receptacle (female connector) outer shell.
 .PP
 In the absence of USB-C PD intelligence (i.e. computer protocols), resistors
 are used to determine which end is a USB-C source and which is a USB-C sink.
 A major difference between USB\-C PD and earlier generations is that no
 voltage will be present on Vbus (hence no power) unless those resistors
-(or PD protocol) identify one end as a source and the other end as a sink.
-So if two USB\-C PD sources (e.g. AC power adapters) are connected via
+(or the PD protocol) identify one end as a source and the other end as a
+sink. So if two USB\-C PD sources (e.g. AC power adapters) are connected via
 a male to male cable, no power will flow. Power banks which can both source
 power and sink power (e.g. when its battery is being recharged) either
 need separate USB\-C PD receptacles with at least one for charging, or, as
@@ -514,110 +149,45 @@ for Dual Role Data in which one end can specify whether it is a USB Host
 or USB Device. When resistors are determining which is source or sink,
 the source is assumed to be a USB Host and the sink is assumed to be a USB
 device. This matches what previous generations of USB did.
+The "no power will flow" claim is a small stretch: periodically a potential
+USB-C source will send a small amount of current on the CC lines to check if
+anything has been recently connected.
 .PP
-DRP can cause issues for any devices that doesn't have its own battery.
-A USB hub would be an example of this, especially "docks" available for
-many high end laptops. If a power adapter (connected to the host AC
-supply) connected to the hub suddenly loses power (e.g. a blackout) then
-the hub will reset while the laptop can switch to its internal battery.
-Any USB device (even self powered ones) connected to the hub will lose
-its connection to the laptop only to re-connect a short while later. But
-the damage may already have been done. If the hub detects the AC power
-reducing, it could request the laptop to do a "Fast Role Swap" (FRS) during
-which the laptop goes from being a sink to a source without dropping the
-Vbus voltage.
+DRP can cause issues for any devices that doesn't have its own battery. A USB
+hub would be an example of this, especially "docks" available for many high
+end laptops. If a power adapter (connected to the host AC supply) connected
+to the hub suddenly loses power (e.g. a blackout) then the hub will reset
+while the laptop can switch to its internal battery. Any USB device (even
+self powered ones) connected to the hub will lose its connection to the
+laptop only to re-connect a short while later. But the damage may already
+have been done. If the hub detects the AC power reducing, it could request
+the laptop to do a "Fast Role Swap" (FRS) during which the laptop goes from
+being a sink to a source without dropping the Vbus voltage (to zero).
 .PP
 USB-C PD revision 1 is dead, curiously it tried to send the CC signal
-modulated over the Vbus line, an experiment that failed in the real world.
-So USB-C PD revision 2 dropped support for USB A and B (i.e. previous
-generations of USB) and only supported USB\-C which has a dedicated CC
-line for the PD protocol traffic. USB-C Revision 2 also introduced
-power output up 100 Watts or 60 Watts for cables that were not Emarked
-and thus could not carry more than 3 Amps. Fixed voltages of 5 Volts,
-9 Volts, 15 Volts and 20 Volts were introduced, the higher ones one if
-the output power was greater than a certain level. So the maximum power
-was 100 Watts using 20 Volts at 5 Amps with a suitable cable. Notice
-that 12 Volts was not required but is provided by many power adapters.
+modulated over the Vbus line, an experiment that failed in the real world. So
+USB-C PD revision 2 dropped support for USB A and B (i.e. previous
+generations of USB) and only supported USB\-C which has a dedicated CC line
+for the PD protocol traffic. USB-C Revision 2 also introduced power output up
+100 Watts or 60 Watts for cables that were not Emarked and thus could not
+carry more than 3 Amps. Fixed voltages of 5 Volts, 9 Volts, 15 Volts and 20
+Volts were introduced, the higher ones only if the output power was greater
+than a certain level. So the maximum power was 100 Watts using 20 Volts at 5
+Amps with a suitable cable. Notice that 12 Volts was not required but is
+provided by many power adapters.
 .PP
-USB-C PD revision 3.0 introduced the "Programmable Power Supply"
-feature (PPS) in which the sink requests a range of voltages (e.g. 3.3
-to 11 Volts)
-at an operating current. The source would initially try to provide the
-highest voltage but if the current draw exceeded the specified operating
-current then the source would reduce the voltage until an equilibrium
-point was reached. The is called current limiting (CL) or constant
-current (CC) mode but the abbreviation CC is obviosly confusing. The
-CL function in the PD source is typically done via hardware which is
-typically a bit safer (and faster) than doing it with software. That
-type of CL is very useful for charging Lithium Ion batteries
+USB-C PD revision 3.0 introduced the "Programmable Power Supply" feature (PPS)
+in which the sink requests a range of voltages (e.g. 3.3 to 11 Volts) at an
+operating current. The source would initially try to provide the highest
+voltage but if the current draw exceeded the specified operating current then
+the source would reduce the voltage until an equilibrium point was reached.
+This is called current limiting (CL) or constant current (CC) mode but the
+abbreviation CC is obviosly confusing. The CL function in the PD source is
+typically done via hardware which is typically a bit safer (and faster) than
+doing it with software. That type of CL is very useful for charging Lithium
+Ion batteries
 
 
-Information for this command is derived from the sysfs file system,
-which is assumed to be mounted at /sys unless specified otherwise
-by the user.
-SCSI (pseudo) devices that have been detected by the SCSI mid level
-will be listed even if the required upper level drivers (i.e. sd, sr,
-st, osst or ch) have not been loaded. If the appropriate upper level
-driver has not been loaded then the device file name will appear
-as '\-' rather than something like '/dev/st0'. Note that some
-devices (e.g. scanners and medium changers) do not have a primary upper
-level driver and can only be accessed via a SCSI generic (sg) device
-name.
-.PP
-Generic SCSI devices can also be accessed via the bsg driver in Linux.
-By default, the bsg driver's device node names are of the
-form '/dev/bsg/\fIH:C:T:L\fR'. So, for example, the SCSI device shown by this
-utility on a line starting with the tuple '6:0:1:2' could be accessed via the
-bsg driver with the '/dev/bsg/6:0:1:2' device node name.
-.PP
-lsscsi version 0.21 or later is required to correctly display SCSI devices
-in Linux kernel 2.6.26 (and possibly later) when the
-CONFIG_SYSFS_DEPRECATED_V2 kernel option is not defined.
-.PP
-In Unix, device nodes (e.g. /dev/sdb) are "special" devices that are
-either "block" or "char" devices. They also have a "major" and "minor"
-numbers and a file name (e.g. "sdb"). The following partial listing should
-clarify how these are shown by the ls command in Linux:
-.PP
-  /dev$ ls -l n*
-  crw------- 1 root root 247,   0 Apr 24 16:56 ng0n1
-  crw-rw-rw- 1 root root   1,   3 Apr 24 16:56 null
-  crw------- 1 root root 248,   0 Apr 29 15:25 nvme0
-  brw-rw---- 1 root disk 259,   0 Apr 24 16:56 nvme0n1
-  brw-rw---- 1 root disk 259,   1 Apr 24 16:56 nvme0n1p1
-  brw-rw---- 1 root disk 259,   2 Apr 24 16:56 nvme0n1p2
-.PP
-The permissions string (e.g. "crw-rw-rw-") starts with a "c" for a char
-device and "b" for a block device. The two numbers separated by comma (and
-a few whitespace) are the major and minor numbers respectively. As a general
-rule the major number identifies the Linux driver which will handle all
-devices that share the same mode (i.e. char or block) and the same major
-number. Traditionally Unix major numbers were fixed (e.g. the sg driver
-is char device 21) but as Linux grew it was obvious that the "fixed major
-number" scheme would not scale. So now device node major numbers are
-allocated dynamically (i.e. at bootup) and the mapping between the driver
-name and its major number can be found in the output of "/proc/devices".
-.PP
-Why explain this? The reason is that all SCSI (and ATA) device nodes in
-Linux have fixed (i.e. well-known) device major numbers. However NVMe,
-which is much newer, has dynamically allocated major numbers. So when a
-utility like lsscsi is dealing with NVMe devices and controllers, often
-an extra step is required: looking at /proc/devices to determine the
-mapping between a driver anme and its major number.
-.PP
-Also the device node name (and udev can change these to override the
-kernel's initial settings) may not always suggest the corresponding
-driver name. For the SCSI generic driver, just remove the trailing
-number (e.g. device node: /dev/sg37, driver: sg); for SCSI disks the
-first two letters are the driver name (e.g. device node: /dev/sdabc,
-driver: sd) and for NVMe generic devices the "driver" name
-is "nvme-generic" (e.g. device node: /dev/ng2n1, driver: nvme-generic).
-Trying to find the nvme-generic driver itself is difficult as it is
-a built\-in part of the core nvme driver.
-.PP
-When a system has been sensibly configured and working properly, this
-utility should be able to hide the details in the above paragraphs.
-However when things go wrong, the above information may be useful.
 .SH AUTHOR
 Written by Doug Gilbert
 .SH "REPORTING BUGS"
@@ -628,8 +198,8 @@ Copyright \(co 2023 Douglas Gilbert
 This software is distributed under the GPL version 2. There is NO
 warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 .SH "SEE ALSO"
-.B lsscsi_json(8)
+.B lsupd_json(lsupd)
 .B lspci
 .B lsusb
 .B lsblk
-.B sg_inq, sg_vpd (both in sg3_utils package),
+.B lsscsi(lsscsi)
