@@ -17,9 +17,9 @@
 
 // Initially this utility will assume C++20 or later
 
-static const char * const version_str = "0.90 20230807 [svn: r5]";
+static const char * const version_str = "0.90 20230810 [svn: r7]";
 
-static const char * const my_name { "lsupd: " };
+static const char * const my_name { "lsucpd: " };
 
 #include <iostream>
 #include <fstream>
@@ -39,7 +39,7 @@ static const char * const my_name { "lsupd: " };
 #include "config.h"
 #endif
 
-#include "lsupd.hpp"
+#include "lsucpd.hpp"
 
 
 /*
@@ -89,7 +89,7 @@ static const auto dir_opt = fs::directory_options::skip_permission_denied;
 // vector of /sys/class/power_supply/ucsi* filename<
 std::vector<sstring> pow_sup_ucsi_v;
 
-int lsupd_verbose = 0;
+int lsucpd_verbose = 0;
 
 enum class pw_op_mode_e {
     def = 0,    // "default": 5 Volts at 900 mA (need to confirm)
@@ -242,7 +242,7 @@ static fs::path sc_powsup_pt;
 
 
 static const char * const usage_message1 =
-    "Usage: lsupd  [--caps] [--help] [--json[=JO]] [--js-file=JFN]\n"
+    "Usage: lsucpd [--caps] [--help] [--json[=JO]] [--js-file=JFN]\n"
     "              [--long] [--sysfsroot=SPATH] [--verbose] [--version]\n"
     "              [FILTER ...]\n"
     "  where:\n"
@@ -259,7 +259,7 @@ static const char * const usage_message1 =
     "    --verbose|-v      increase verbosity, more debug information\n"
     "    --version|-V      output version string and exit\n\n";
 static const char * const usage_message2 =
-    "LiSt Usb-c Power Delivery (lsupd) information on the command line in a\n"
+    "LiSt Usb-C Power Delivery (lsucpd) information on the command line in a\n"
     "compact form. This utility obtains that information from sysfs (under:\n"
     "/sys ). FILTER arguments are optional; if present they are of the "
     "form:\n'p<num>[p]' or 'pd<num>'. The first is for matching (typec) "
@@ -292,19 +292,19 @@ pr2ser(const std::string & emsg, const std::error_code & ec /* = { } */,
        const std::source_location loc /* = std::source_location::current() */)
 {
     if (emsg.size() == 0) {     /* shouldn't need location.column() */
-        if (lsupd_verbose > 1)
+        if (lsucpd_verbose > 1)
             scerr << loc.file_name() << " " << loc.function_name() << ";ln="
                   << loc.line() << "\n";
         else
             scerr << "pr2ser() called but no message?\n";
     } else if (ec) {
-        if (lsupd_verbose > 1)
+        if (lsucpd_verbose > 1)
             scerr << loc.function_name() << ";ln=" << loc.line() << ": "
                   << emsg << ", error: " << ec.message() << "\n";
         else
             scerr << emsg << ", error: " << ec.message() << "\n";
     } else {
-        if (lsupd_verbose > 1)
+        if (lsucpd_verbose > 1)
             scerr << loc.function_name() << ";ln=" << loc.line() <<  ": "
                   << emsg << "\n";
         else
@@ -320,7 +320,7 @@ pr3ser(const std::string & e1msg, const char * e2msg /* = nullptr */,
     if (e2msg == nullptr)
         pr2ser(e1msg, ec, loc);
     else if (ec) {
-        if (lsupd_verbose > 1)
+        if (lsucpd_verbose > 1)
             scerr << loc.function_name() << ";ln=" << loc.line() << ": '"
                   << e1msg << "': " << e2msg << ", error: "
                   << ec.message() << "\n";
@@ -328,7 +328,7 @@ pr3ser(const std::string & e1msg, const char * e2msg /* = nullptr */,
             scerr << "'" << e1msg << "': " << e2msg << ", error: "
                   << ec.message() << "\n";
     } else {
-        if (lsupd_verbose > 1)
+        if (lsucpd_verbose > 1)
             scerr << loc.function_name() << ";ln=" << loc.line() << ": '"
                   << e1msg << "': " << e2msg << "\n";
         else
@@ -344,7 +344,7 @@ pr4ser(const std::string & e1msg, const std::string & e2msg,
     if (e3msg == nullptr)
         pr3ser(e1msg, e2msg.c_str(), ec, loc);
     else if (ec) {
-        if (lsupd_verbose > 1)
+        if (lsucpd_verbose > 1)
             scerr << loc.function_name() << ";ln=" << loc.line() << ": '"
                   << e1msg << "," << e2msg << "': " << e3msg
                   << ", error: " << ec.message() << "\n";
@@ -352,7 +352,7 @@ pr4ser(const std::string & e1msg, const std::string & e2msg,
             scerr << "'" << e1msg << "," << e2msg << "': " << e3msg
                   << ", error: " << ec.message() << "\n";
     } else {
-        if (lsupd_verbose > 1)
+        if (lsucpd_verbose > 1)
             scerr << loc.function_name() << ";ln=" << loc.line() << ": '"
                   << e1msg << "," << e2msg << "': " << e3msg << "\n";
         else
@@ -465,7 +465,7 @@ map_d_regu_files(const fs::path & dir_pt, strstr_m & map_io,
         const sstring & name { pt.filename() };
         sstring val;
 
-        if (lsupd_verbose > 5)
+        if (lsucpd_verbose > 5)
             pr3ser(name, "filename() of entry in capabilities directory");
         if (fs::is_regular_file(*itr, ec) && (! pt.empty()) &&
             (pt.string()[0] != '.')) {
@@ -497,7 +497,7 @@ query_power_dir(const std::map<sstring, sstring> & m, bool & is_source,
             is_source = true;
         else if (strstr(it->second.c_str(), "[sink]"))
             is_source = false;
-        else if (lsupd_verbose > 0) {
+        else if (lsucpd_verbose > 0) {
             is_source = false;
             pr3ser(it->second, "<< unexpected power_role");
         }
@@ -516,7 +516,7 @@ query_power_dir(const std::map<sstring, sstring> & m, bool & is_source,
             pom = pw_op_mode_e::v5i3_0;
         else if (strstr(it2->second.c_str(), "power_delivery"))
             pom = pw_op_mode_e::usb_pd;
-        else if (lsupd_verbose > 0) {
+        else if (lsucpd_verbose > 0) {
             pr3ser(it2->second, "<< unexpected power_operation_mode");
             pom = pw_op_mode_e::def;
         }
@@ -536,7 +536,7 @@ query_data_dir(const std::map<sstring, sstring> & m, bool & is_host)
             is_host = true;
         else if (strstr(it->second.c_str(), "[device]"))
             is_host = false;
-        else if (lsupd_verbose > 0) {
+        else if (lsucpd_verbose > 0) {
             is_host = false;
             pr3ser(it->second, "<< unexpected data_role");
         }
@@ -777,17 +777,17 @@ populate_src_snk_pdos(upd_dir_elem & val, struct opts_t * op)
 
     const auto src_cap_pt = pd_pt / src_cap_s;
     if (fs::exists(src_cap_pt, ec)) {
-        if (lsupd_verbose > 3)
+        if (lsucpd_verbose > 3)
             pr3ser(src_cap_pt, "exists");
         ec = populate_pdos(src_cap_pt, true, val, op);
     }
     const auto sink_cap_pt = pd_pt / sink_cap_s;
     if (fs::exists(sink_cap_pt, ec)) {
-        if (lsupd_verbose > 3)
+        if (lsucpd_verbose > 3)
             pr3ser(sink_cap_pt, "exists");
         ec2 = populate_pdos(sink_cap_pt, false, val, op);
     }
-    if (lsupd_verbose > 4)
+    if (lsucpd_verbose > 4)
         scerr << "Number of source PDOs: " << val.source_pdo_v_.size()
               << ", number of sink PDOs: " << val.sink_pdo_v_.size() << "\n";
     return ec ? ec : ec2;
@@ -831,7 +831,7 @@ process_pw_dir_mode(const tc_dir_elem * elemp, bool is_partn, int clen,
                 snprintf(c, clen, " > {5V, 3.0A}  ");
                 break;
            default:
-                if (lsupd_verbose > 0)
+                if (lsucpd_verbose > 0)
                     pr2serr("unexpected power_operation_mode "
                             "[%d]\n",
                             static_cast<int>(pom));
@@ -956,7 +956,7 @@ chk_short_opts(const char sopt_ch, struct opts_t * op)
         break;
     case 'v':
         op->verbose_given = true;
-        ++lsupd_verbose;
+        ++lsucpd_verbose;
         break;
     case 'V':
         op->version_given = true;
@@ -1036,7 +1036,7 @@ main(int argc, char * argv[])
             break;
         case 'v':
             op->verbose_given = true;
-            ++lsupd_verbose;
+            ++lsucpd_verbose;
             break;
         case 'V':
             op->version_given = true;
@@ -1145,7 +1145,7 @@ main(int argc, char * argv[])
         const fs::path & it_pt { itr->path() };
         const sstring basename = it_pt.filename();
 
-        if (lsupd_verbose > 4)
+        if (lsucpd_verbose > 4)
             pr3ser(basename, "filename() of entry in /sys/class/typec");
         const char * base_s = basename.data();
         tc_dir_elem de { *itr };
@@ -1153,7 +1153,7 @@ main(int argc, char * argv[])
         if (itr->is_directory(ec) && itr->is_symlink(ec)) {
 
             if (1 != sscanf(base_s, "port%u", &de.port_num_)) {
-                if (lsupd_verbose > 0)
+                if (lsucpd_verbose > 0)
                     pr3ser(it_pt, "unable to decode 'port<num>', skip");
                 continue;
             } else {
@@ -1199,7 +1199,7 @@ main(int argc, char * argv[])
                     if (ec) {
                         pr3ser(itr->path(), "returned by get_value()", ec);
                     } else {
-                        if (lsupd_verbose > 3)
+                        if (lsucpd_verbose > 3)
                             scerr << "power_role: " << attr << "\n";
                     }
                 }
@@ -1326,7 +1326,7 @@ main(int argc, char * argv[])
         }
     } else if (op->filter_pd_v.empty()) {
         for (auto&& [n, v] : op->summ_out_m) {
-            if (lsupd_verbose > 4)
+            if (lsucpd_verbose > 4)
                 scerr << "port=" << n << ":\n";
             scout << v << "\n";
             if (op->do_long > 0) {
@@ -1376,7 +1376,7 @@ main(int argc, char * argv[])
                                std::regex_constants::icase };
             for (auto&& [nm, upd_d_el] : op->upd_de_m) {
                 if (regex_match_noexc(upd_d_el.match_str_, pat, ec)) {
-                    if (lsupd_verbose > 3)
+                    if (lsucpd_verbose > 3)
                         scerr << "nm=" << nm << ", regex match on: "
                               << upd_d_el << "\n";
                     ec = populate_src_snk_pdos(upd_d_el, op);
@@ -1394,7 +1394,7 @@ main(int argc, char * argv[])
         }
     } else if (! filter_for_port) {
         for (auto&& [nm, upd_d_el] : op->upd_de_m) {
-            if (lsupd_verbose > 3)
+            if (lsucpd_verbose > 3)
                 scerr << "nm=" << nm << ", about to populate on: "
                       << upd_d_el << "\n";
             ec = populate_src_snk_pdos(upd_d_el, op);

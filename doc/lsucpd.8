@@ -1,8 +1,8 @@
-.TH LSUPD "8" "August 2023" "lsupd\-0.90" LSUPD
+.TH LSUCPD "8" "August 2023" "lsucpd\-0.90" LSUCPD
 .SH NAME
 lsscsi \- list USB-C Power Delivery objects
 .SH SYNOPSIS
-.B lsupd
+.B lsucpd
 [\fI\-\-caps\fR] [\fI\-\-help\fR] [\fI\-\-json[=JO]\fR]
 [\fI\-\-js\-file=JFN\fR] [\fI\-\-long\fR] [\fI\-\-sysfsroot=PATH\fR]
 [\fI\-\-verbose\fR] [\fI\-\-version\fR] [\fIFILTER ... \fR]
@@ -48,7 +48,7 @@ adapter via a male to male cable) then (port) "partner" information may appear
 to the right of line for the corresponding port.
 .PP
 A simple example:
-    $ lsupd
+    $ lsucpd
      port0 [pd0]  <<===  partner: [pd8] 
      port1 [pd1]  > {5V, 0.9A}
 .PP
@@ -93,14 +93,14 @@ output is in JSON format instead of plain text form. Note that arguments
 to the short and long form are themselves optional and if present start
 with "=" and no whitespace is permitted around that "=".
 .br
-See the lsupd_json(8) manpage or use '?' for \fIJO\fR to get a summary.
+See the lsucpd_json(8) manpage or use '?' for \fIJO\fR to get a summary.
 .TP
 \fB\-J\fR, \fB\-\-js\-file\fR=\fIJFN\fR
 Send the JSON output to a file named \fIJFN\fR instead of stdout. When
 this option is given, the \fI\-\-json\fR option is not required unless
 JSON settings in \fIJO\fR are needed.
 .br
-See the accompanying lsupd_json(8) manpage.
+See the accompanying lsucpd_json(8) manpage.
 .TP
 \fB\-l\fR, \fB\-\-long\fR
 xxxxxxxxUse Linux default algorithm for naming devices (e.g. block major 8, minor 0
@@ -218,7 +218,7 @@ Copyright \(co 2023 Douglas Gilbert
 This software is distributed under the GPL version 2. There is NO
 warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 .SH "SEE ALSO"
-.B lsupd_json(lsupd)
+.B lsucpd_json(lsucpd)
 .B lspci
 .B lsusb
 .B lsblk

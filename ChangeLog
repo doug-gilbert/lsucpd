@@ -1,5 +1,5 @@
 Linux utility for listing USB C Power Delivery information.
 
-Changelog for pre-release lsucpd-0.90 [20230810] [svn: r6]
+Changelog for pre-release lsucpd-0.90 [20230810] [svn: r7]
   - build framework copying lsscsi repository
 

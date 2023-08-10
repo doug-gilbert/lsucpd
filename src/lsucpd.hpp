@@ -1,5 +1,5 @@
-#ifndef LSUPD_HPP
-#define LSUPD_HPP
+#ifndef LSUCPD_HPP
+#define LSUCPD_HPP
 
 /*
  * Copyright (c) 2023 Douglas Gilbert.
@@ -28,7 +28,7 @@ pr4ser(const std::string & e1msg, const std::string & e2msg,
        const std::source_location loc = std::source_location::current());
 
 
-extern int lsupd_verbose;
+extern int lsucpd_verbose;
 
 
-#endif 		/* end of #ifndef LSUPD_HPP */
+#endif 		/* end of #ifndef LSUCPD_HPP */
