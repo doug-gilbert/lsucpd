@@ -1,11 +1,11 @@
-Source: lsupd
+Source: lsucpd
 Section: admin
 Priority: optional
 Maintainer: Matt Taggart <taggart@debian.org>
 Build-Depends: cdbs (>= 0.4.15), debhelper (>= 4.0.0), autotools-dev
 Standards-Version: 3.6.2.1
 
-Package: lsupd
+Package: lsucpd
 Architecture: any
 Depends: ${shlibs:Depends}
 Description: examine Linux syfs pseudo file system (e.g. under /sys )

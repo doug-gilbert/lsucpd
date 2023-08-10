@@ -1,4 +1,4 @@
-%define name    lsupd
+%define name    lsucpd
 %define version 0.90
 %define release 1
 
@@ -57,4 +57,4 @@ fi
 %changelog
 * Thu Jun 08 2023 - dgilbert at interlog dot com
 - initial version
-  * lsupd-0.90
+  * lsucpd-0.90

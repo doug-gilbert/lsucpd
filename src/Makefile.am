@@ -1,4 +1,4 @@
-bin_PROGRAMS = lsupd
+bin_PROGRAMS = lsucpd
 
 ## .SUFFIXES: .cpp
 
@@ -43,8 +43,8 @@ endif
 AM_CXXFLAGS = -Wall -W -pedantic -std=c++20 $(DBG_CXXFLAGS)
 ## AM_CXXFLAGS = -Wall -W -pedantic -std=c++20 $(DBG_CXXCLANGFLAGS)
 
-lsupd_SOURCES =	lsupd.cpp \
-			lsupd.hpp \
+lsucpd_SOURCES =	lsucpd.cpp \
+			lsucpd.hpp \
 			sg_json_builder.h \
 			sg_json_builder.c \
 			sg_pr2serr.h \

@@ -21,13 +21,13 @@ To clean out prior to making a tarball (so ./configure needs to be run
 on the target system):
  $ make distclean
 
-Rpms are also available. A lsupd.spec file is included in the tarball
+Rpms are also available. A lsucpd.spec file is included in the tarball
 to facilitate building rpms. One way of doing this on a RedHat system
-is to place the tarball of the form 'lsupd-%{version}.tar.gz' in the
+is to place the tarball of the form 'lsucpd-%{version}.tar.gz' in the
 /usr/src/redhat/SOURCE directory and the spec file in the
-/usr/src/redhat/SPEC directory. Then execute 'rpmbuild -ba lsupd.spec'
+/usr/src/redhat/SPEC directory. Then execute 'rpmbuild -ba lsucpd.spec'
 from the "SPEC" directory. [Specifying the
-target may help (e.g. 'rpmbuild --target=x86_64 -ba lsupd.spec') . If
+target may help (e.g. 'rpmbuild --target=x86_64 -ba lsucpd.spec') . If
 successful that will deposit the binary rpm in the
 /usr/src/redhat/RPMS/x86_64 directory and the source rpm in the
 /usr/src/redhat/SRPMS directory. Building an rpm on Suse is similar
@@ -35,13 +35,13 @@ successful that will deposit the binary rpm in the
 
 
 To build a Linux debian "deb" (binary) package, first untar the tarball,
-then change directory to the top level within the lsupd source. Then:
+then change directory to the top level within the lsucpd source. Then:
  # chmod +x debian/rules
  # dpkg-buildpackage -b -rfakeroot
 The binary deb packages will be placed in the parent directory (of
-the lsupd source directory) if all goes well.
+the lsucpd source directory) if all goes well.
 There is a build_debian.sh script in the tarball's top level directory
 that does the above.
 
 Douglas Gilbert
-8 June 2023
+10 August 2023

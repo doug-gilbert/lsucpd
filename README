@@ -1,23 +1,23 @@
 
-                               lsupd
-                               =====
+                               lsucpd
+                               ======
 
 Introduction
 ------------
 This utility belongs to the "ls*" family of utilities found in Linux whose
 names derive from the Unix ls utility (command) for listing files and
-directories. In the case of lsupd, the "upd" is an abbreviation for USB-C
+directories. In the case of lsucpd, the "ucpd" is an abbreviation for USB-C
 Power Delivery (PD) which is optional on USB Type-C interconnects. A typical
 USB-C interconnect consists of a power adapter (e.g. an AC 65 Watt power
 adapter) and a consumer of power (e.g. a laptop). Taking those examples,
 both the power adapter and the laptop will have female USB-C connectors (also
 known as receptacles). A USB-C cable will complete the circuit with a male
 USB-C plug on either end.
-The lsupd utility will list local USB-C ports (e.g. each female USB-C
+The lsucpd utility will list local USB-C ports (e.g. each female USB-C
 connector on a laptop) with one line output for each port. Note that not
 all USB-C ports support PD. For those ports that do support PD that are
 also connected to another USB-C PD device, a "port<n>-partner" is shown
-to the right of each line output by lsupd. The direction that power is
+to the right of each line output by lsucpd. The direction that power is
 flowing is indicated by "===>" or "<===" between each port<n> and
 port<n>-partner.
 
@@ -211,4 +211,4 @@ Note that the final 'make install' will usually require root permissions
 and will place binaries in the /usr/local/bin directory.
 
 Douglas Gilbert
-30th May 2023
+10th August 2023

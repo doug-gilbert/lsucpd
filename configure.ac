@@ -1,4 +1,4 @@
-AC_INIT(lsupd, 0.90, dgilbert@interlog.com)
+AC_INIT(lsucpd, 0.90, dgilbert@interlog.com)
 
 AM_INIT_AUTOMAKE([-Wall -Werror foreign])
 AM_MAINTAINER_MODE

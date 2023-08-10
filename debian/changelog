@@ -1,6 +1,6 @@
-lsupd (0.90-0.1) unstable; urgency=low
+lsucpd (0.90-0.1) unstable; urgency=low
 
   * new upstream version
 
- -- Douglas Gilbert <dgilbert@interlog.com>  Thu, 08 Jun 2023 22:00:00 -0400
+ -- Douglas Gilbert <dgilbert@interlog.com>  Thu, 10 Aug 2023 12:00:00 -0400
 

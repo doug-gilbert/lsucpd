@@ -1,3 +1,3 @@
 
-man_MANS = lsupd.8 lsupd_json.8
+man_MANS = lsucpd.8 lsucpd_json.8
 
