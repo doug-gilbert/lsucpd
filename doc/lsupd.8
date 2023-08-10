@@ -1,4 +1,4 @@
-.TH LSUPD "8" "July 2023" "lsupd\-0.90" LSUPD
+.TH LSUPD "8" "August 2023" "lsupd\-0.90" LSUPD
 .SH NAME
 lsscsi \- list USB-C Power Delivery objects
 .SH SYNOPSIS
@@ -12,41 +12,64 @@ lsscsi \- list USB-C Power Delivery objects
 Despite appearances, this utility has nothing to do with UPDates. The first
 part of its name (i.e. "ls") comes from the Unix command name to list
 file names (including directories). The trailing "upd" is an abbreviation
-of "USB-C Power Delivery". It joins a growing family of Linux "ls" utilities
-such as lsblk, lscpu, lsfd, lsmem, lsof, lspci, lsscsi and lsusb.
+of "USB Type C Power Delivery". It joins a growing family of Linux "ls"
+utilities such as lsblk, lscpu, lsfd, lsmem, lsof, lspci, lsscsi and lsusb.
 .PP
 USB Power Delivery is often associated with the 24 pin USB Type C connector
 typically shortened to USB\-C. Sysfs in Linux has two classes that cover
 this facility: /sys/class/typec and /sys/class/usb_power_delivery. The
 /sys/class/typec directory contains 'port<n>' and 'port<n>\-partner' entries.
 A "port" is a USB type C endpoint and with the common USB-C male\-to\-male
-cabling, aport corresponds to female USB\-C connectors also knows as
+cabling, a port corresponds to female USB\-C connectors also knows as
 receptacles. Modern laptops often have two or more female USB-C receptacles
 which Linux will number: port0, port1, etc. In the future entries in the
 /sys/class/typec/port0/physical_location directory should accurately describe
 where port 0 is (but not in lk 6.4).
 .PP
-Strictly speaking USB PD refers to use of a computer protocol (called BMC)
-along a CC line that enables a maximum power of 100 Watts (20 Volts at 5
-Amps) in what is now called SPR (the Standard Power Range). USB PD revision
-3.1 increased that with the Extended Power Range (EPR) to 240 Watts, 48 Volts
-at 5 Amps. Notice that is a maximum, and many conditions must be met before
-240 Watts can be supplied. USB Type C can function without USB PD, with the
-protocol on the CC lines replaced by resistors. In this mode Type C can
-supply a maximum of 5 Volts at 3 Amps (15 Watts). Many USB\-C devices such
-as USB flash (memory) keys use non\-PD mode.
+Strictly speaking USB PD refers to use of a computer protocol (whose
+transport is known as BMC) along a CC line that enables a maximum power of
+100 Watts (20 Volts at 5 Amps) in what is now called SPR (the Standard Power
+Range). USB PD revision 3.1 increased that maximum with the Extended Power
+Range (EPR) to 240 Watts: 48 Volts at 5 Amps. Notice that is a maximum, and
+many conditions must be met before 240 Watts can be supplied. USB Type C can
+function without USB PD, with the protocol on the CC lines replaced by
+resistors. In this mode Type C can supply a maximum of 5 Volts at 3 Amps (15
+Watts). Many USB\-C devices such as USB flash (memory) keys use non\-PD mode.
 .PP
-USB PD endpoints are named pd<num> and are found in the
+USB PD endpoints are named 'pd<num>' and are found in the
 /sys/class/usb_power_delivery directory. Currently only the source and sink
 capabilities (if supported) are listed under each pd<num> directory. Adding
-entries derived from the most recent PD RDO (request data object) command
-would be really helpful.
+entries derived from the most recently accepted PD RDO (request data object)
+command would be really helpful.
 .PP
 The default output of this utility is one line per local USB Type C port
-on the host machine. If that port is in use (e.g. connector to a USB\-C power
-adpater via a male to male cable) then (port) "partner" information may appear
+on the host machine. If that port is in use (e.g. connected to a USB\-C power
+adapter via a male to male cable) then (port) "partner" information may appear
 to the right of line for the corresponding port.
-   ....
+.PP
+A simple example:
+    $ lsupd
+     port0 [pd0]  <<===  partner: [pd8] 
+     port1 [pd1]  > {5V, 0.9A}
+.PP
+This shows that the host has two USB Type C receptacles: port0 and port1.
+Both ports are USB PD capable with endpoints named pd0 and pd1 respectively.
+The fact that port 0 has a partner indicates a USB C male to male cable
+is connected to port 0 and what seems like a power adapter at the other end
+whose endpoint is associated with pd8. sysfs indicates power negotiated by
+the USB PD protocol is flowing in the direction of the arrow: from pd8
+to pd0. It would be useful to indicate the active contract is 20 Volts at
+a maximum of 4.5 Amps to the right of each line but the active RDO (Request
+Data Object) is not being properly reported in lk 6.4 series kernels.
+.PP
+The second line in the example output above shows that nothing is connected
+to port1 but if it was, port1 would report that it can source 5 Volts at
+0.9 Amps. More likely that port can source 1.5 Amps and the value shown
+above (real output) is slightly misreported.
+.PP
+This utility can be categorized as "beta" software, amongst other reasons
+being that USB PD reporting from the Linux kernel (currently lk 6.4) has
+some rough edges (to put it mildly).
 .SH OPTIONS
 Arguments to long options are mandatory for short options as well. The options
 are arranged in alphabetical order based on the long option name. Hyphenated
@@ -97,8 +120,7 @@ outputs version information then exits. If used once outputs to stderr; if
 used twice outputs to stdout and shortens the date to yyyymmdd numeric
 format. The first number in the version string is the release number.
 .SH EXAMPLES
-Information about this utility including examples can also be found at:
-https://sg.danny.cz/scsi/lsscsi.html .
+xxxxxxxxxxxxxxx
 .SH INTRODUCTION TO USB\-C PD
 Here are some USB\-C PD basics. The plan is that only one type of cable will
 be needed: a USB-C male to male cable with up to 24 pins carrying power and
@@ -184,10 +206,8 @@ the source would reduce the voltage until an equilibrium point was reached.
 This is called current limiting (CL) or constant current (CC) mode but the
 abbreviation CC is obviosly confusing. The CL function in the PD source is
 typically done via hardware which is typically a bit safer (and faster) than
-doing it with software. That type of CL is very useful for charging Lithium
-Ion batteries
-
-
+doing it with software. That type of current limiting is very useful for
+charging Lithium Ion batteries
 .SH AUTHOR
 Written by Doug Gilbert
 .SH "REPORTING BUGS"

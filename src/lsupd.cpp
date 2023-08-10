@@ -17,7 +17,7 @@
 
 // Initially this utility will assume C++20 or later
 
-static const char * const version_str = "0.90 20230711 [svn: r4]";
+static const char * const version_str = "0.90 20230807 [svn: r5]";
 
 static const char * const my_name { "lsupd: " };
 
@@ -256,7 +256,7 @@ static const char * const usage_message1 =
     "    --long|-l         supply more information\n"
     "    --sysfsroot=SPATH|-y SPATH    set sysfs mount point to SPATH (def: "
     "/sys)\n"
-    "    --verbose|-v      increase verbosity, more debug informaation\n"
+    "    --verbose|-v      increase verbosity, more debug information\n"
     "    --version|-V      output version string and exit\n\n";
 static const char * const usage_message2 =
     "LiSt Usb-c Power Delivery (lsupd) information on the command line in a\n"
@@ -313,7 +313,7 @@ pr2ser(const std::string & emsg, const std::error_code & ec /* = { } */,
 }
 
 void
-pr3ser(const std::string & e1msg, const char * e2msg /* = NULL */,
+pr3ser(const std::string & e1msg, const char * e2msg /* = nullptr */,
        const std::error_code & ec,
        const std::source_location loc)
 {
@@ -338,7 +338,7 @@ pr3ser(const std::string & e1msg, const char * e2msg /* = NULL */,
 
 void
 pr4ser(const std::string & e1msg, const std::string & e2msg,
-       const char * e3msg /* = NULL */, const std::error_code & ec,
+       const char * e3msg /* = nullptr */, const std::error_code & ec,
        const std::source_location loc)
 {
     if (e3msg == nullptr)
@@ -425,11 +425,11 @@ get_value(const fs::path & dir_or_fn_pt, const sstring & base_name,
     val_out.clear();
     val_out.resize(max_value_len);
     bp = val_out.data();
-    if (NULL == (f = fopen(vnm.c_str(), "r"))) {
+    if (nullptr == (f = fopen(vnm.c_str(), "r"))) {
         ec.assign(errno, std::system_category());
         return ec;
     }
-    if (NULL == fgets(bp, max_value_len, f)) {
+    if (nullptr == fgets(bp, max_value_len, f)) {
         /* assume empty */
         val_out.clear();
         fclose(f);
@@ -980,7 +980,7 @@ main(int argc, char * argv[])
     struct opts_t opts { };
     struct opts_t * op = &opts;
     sgj_state * jsp;
-    sgj_opaque_p jop = NULL;
+    sgj_opaque_p jop = nullptr;
     tc_dir_elem * elemp;
     int res { };
     size_t sz;
@@ -1025,7 +1025,7 @@ main(int argc, char * argv[])
                         return 0;
                 }
             } else
-                op->json_arg = NULL;
+                op->json_arg = nullptr;
             break;
        case 'J':
             op->do_json = true;
@@ -1222,7 +1222,7 @@ main(int argc, char * argv[])
         std::ranges::sort(op->tc_de_v);
         // assume, for example, "port3" precedes "port3-partner" after sort
 
-        tc_dir_elem * prev_elemp = NULL;
+        tc_dir_elem * prev_elemp = nullptr;
         int b_ind { };
         char c[32];
         static const int clen = sizeof(c);
@@ -1413,7 +1413,7 @@ fini:
         if (op->js_file) {
             if ((1 != strlen(op->js_file)) || ('-' != op->js_file[0])) {
                 fp = fopen(op->js_file, "w");   /* truncate if exists */
-                if (NULL == fp) {
+                if (nullptr == fp) {
                     res = errno;
                     pr2serr("unable to open file: %s [%s]\n", op->js_file,
                             strerror(res));
@@ -1422,7 +1422,7 @@ fini:
             /* '--js-file=-' will send JSON output to stdout */
         }
         if (fp)
-            sgj_js2file_estr(jsp, NULL, res, strerror(res), fp);
+            sgj_js2file_estr(jsp, nullptr, res, strerror(res), fp);
         if (op->js_file && fp && (stdout != fp))
             fclose(fp);
         sgj_finish(jsp);
