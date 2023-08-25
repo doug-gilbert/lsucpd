@@ -1,6 +1,6 @@
 .TH LSUCPD "8" "August 2023" "lsucpd\-0.90" LSUCPD
 .SH NAME
-lsscsi \- list USB-C Power Delivery objects
+lsucpd \- list USB-C Power Delivery objects
 .SH SYNOPSIS
 .B lsucpd
 [\fI\-\-caps\fR] [\fI\-\-help\fR] [\fI\-\-json[=JO]\fR]
@@ -9,11 +9,11 @@ lsscsi \- list USB-C Power Delivery objects
 [\fIH:C:T:L\fR]
 .SH DESCRIPTION
 .\" Add any additional description here
-Despite appearances, this utility has nothing to do with UPDates. The first
-part of its name (i.e. "ls") comes from the Unix command name to list
-file names (including directories). The trailing "upd" is an abbreviation
-of "USB Type C Power Delivery". It joins a growing family of Linux "ls"
-utilities such as lsblk, lscpu, lsfd, lsmem, lsof, lspci, lsscsi and lsusb.
+The first part of this utility's name (i.e. "ls") comes from the Unix
+command name to list file names (including directories). The
+trailing "ucpd" is an abbreviation of "Usb type C Power Delivery". It joins
+a growing family of Linux "ls" utilities such as lsblk, lscpu, lsfd, lsmem,
+lsof, lspci, lsscsi and lsusb.
 .PP
 USB Power Delivery is often associated with the 24 pin USB Type C connector
 typically shortened to USB\-C. Sysfs in Linux has two classes that cover
@@ -49,7 +49,7 @@ to the right of line for the corresponding port.
 .PP
 A simple example:
     $ lsucpd
-     port0 [pd0]  <<===  partner: [pd8] 
+     port0 [pd0]  <<===  partner: [pd8]
      port1 [pd1]  > {5V, 0.9A}
 .PP
 This shows that the host has two USB Type C receptacles: port0 and port1.
@@ -77,6 +77,9 @@ long options can also take underscore, and vice versa (e.g.
 \fI\-\-js\-file=JFN\fR and \fI\-\-js_file=JFN\fR have the same meaning).
 .TP
 \fB\-c\fR, \fB\-\-caps\fR
+under the PD protocol commences the sink and source swap "capabilities"
+message. For the standard power range (SPR) each capabilities message will
+be made of up to 7 PDOs (power data objects).
 reduces one line per device output to the tuple and the primary device name.
 This may simplify scripts that process the output of this utility. With the
 \fI\-\-generic\fR option it will show on each line the tuple (from which
@@ -103,9 +106,14 @@ JSON settings in \fIJO\fR are needed.
 See the accompanying lsucpd_json(8) manpage.
 .TP
 \fB\-l\fR, \fB\-\-long\fR
-xxxxxxxxUse Linux default algorithm for naming devices (e.g. block major 8, minor 0
-is "/dev/sda") rather than the "match by major and minor" in the "/dev"
-directory as discussed above.
+when this option is given, some more information is provided. One example
+is the raw value (in 32 bit hex) of the PDO. Also if the Request Data
+Object (RDO) becomes available through sysfs, its value will be output.
+The RDO shows the current (i.e. active) PD contract. In the Linux kernel 6.5
+the power_supply subject in sysfs (i.e. under /sys/class/power_supply/ )
+does not properly match the associated PD information (e.g. the sysfs
+power_supply interface has no concept of power direction: sink or source)
+but hopefully that will improve in the near future.
 .TP
 \fB\-y\fR, \fB\-\-sysfsroot\fR=\fIPATH\fR
 assumes sysfs is mounted at PATH instead of the default '/sys' . If this
@@ -120,6 +128,61 @@ outputs version information then exits. If used once outputs to stderr; if
 used twice outputs to stdout and shortens the date to yyyymmdd numeric
 format. The first number in the version string is the release number.
 .SH EXAMPLES
+The following examples were performed on a Thinkpad X13 Gen 3 (Lenovo)
+which has two USB-C ports. Lenovo advertises them as "USB4" with
+Thunderbolt 4 support and "Power Delivery 3.0". So (some) SPR support but
+no EPR support. With nothing connected to those ports:
+    $ lsupd
+    port0 [pd0]  <     
+    port1 [pd1]  <
+The "typec" identifier are shown first on each line: port0 and port1,
+followed by the usb_power_delivery identifier in square brackets: pd0
+and pd1. The '<' indicates the direction power will flow and for both
+ports their default configuration is to receive power (i.e. be 'sink's).
+Anything connected to those ports will be shown to the right of the '<'
+or the '>'. In this case nothing is connected.
+.PP
+Now with a USB-C memory stick connected to port0:
+    $ lsucpd
+    port0 [pd0]  > {5V, 1.5A}   partner: 
+    port1 [pd1]  <
+port0 now has an unidentified 'partner' and power is being sourced by
+the laptop: at a fixed volatge of 5 Volt with a 1.5 Amp maximum. Nothing
+is connected to port 1.
+.PP
+A Dell 130 Watt USB-C power adapter is now connected to port1:
+    $ lsucpd
+    port0 [pd0]  > {5V, 1.5A}   partner: 
+    port1 [pd1]  <<===  partner: [pd11]
+The '<<===' indicates a PD contract is active and the usb_power_delivery
+identifier associated with the Dell power adapter is pd11. If the RDO
+of that PD contract was available via sysfs (it isn't which is a hardware
+of kernel issue) it would show '20V, 4.5A'.
+.PP
+Lot of information is available through the sink and source capabilities
+that each end of a PD connection advertise to one another:
+    $ lsucpd --caps pd11
+    > pd11: source capabilities:
+      >>> 1:fixed_supply
+          dual_role_data='1'
+          dual_role_power='0'
+          maximum_current='1000mA'
+          unchunked_extended_messages_supported='0'
+          unconstrained_power='1'
+          usb_communication_capable='0'
+          usb_suspend_supported='0'
+          voltage='5000mV'
+      >>> 2:fixed_supply
+          maximum_current='4500mA'
+          voltage='18000mV'
+      >>> 3:fixed_supply
+          maximum_current='4500mA'
+          voltage='20000mV'
+    > pd11: sink capabilities:
+Here the capabilities of pd11 (only) are output. The filter argument (i.e.
+pd11) is optional and used here to limit the amount of output. The output
+show the DELL adapter supports 3 fixed source PDOs and 0 sink PDOs.
+optional
 xxxxxxxxxxxxxxx
 .SH INTRODUCTION TO USB\-C PD
 Here are some USB\-C PD basics. The plan is that only one type of cable will
@@ -130,7 +193,7 @@ at 5 Amps DC).
 .PP
 USB-C Power Delivery (PD) has almost nothing to do with the rest of USB,
 USB "hosts" and "devices" are a secondary consideration (or not present).
-Instead, us USB-C PD "sources" (providers of power) and "sinks" (consumers
+Instead, USB-C PD "sources" (providers of power) and "sinks" (consumers
 of power) are the primary concepts.
 .PP
 USB PD signalling takes place over the CC line (Configuration Control) which
@@ -139,7 +202,7 @@ also things like Alternate mode (e.g. for carrying DisplayPort over USB-C).
 In the USB-C receptacle (e.g. the socket on the side of a laptop), there are
 two CC lines called CC1 and CC2. In the mating USB-C plug (e.g. one end of a
 USB-C male to male cable) the same two lines are called CC and Vconn. Why
-aren't the same names used? That is part of the excitement with reversible
+aren't the names the same? That is part of the excitement with reversible
 cables! USB-C PD cables are reversible in two senses: each plug can be taken
 out and rotated 180 degrees and re\-inserted; the other sense is that each
 end of the cable is the same, so the cable ends can be switched around.
@@ -148,6 +211,7 @@ goes from one end of the USB-C cable to the other while Vconn powers the
 so\-called Emarker chip (required for cables that can carry more than 3 Amps)
 and retimer chips needed in cables that can carry Superspeed data (e.g. 5,
 10 and 20 Gbps). The most basic USB-C male to male cables don't need Vconn.
+Only USB-C cables that contain retimer chips are referred to as "active".
 .PP
 A USB\-C PD source provides power, delivered between the Ground pins and the
 VBus pins. There are four of each (i.e. pins) while Ground may also be
@@ -201,13 +265,13 @@ provided by many power adapters.
 USB-C PD revision 3.0 introduced the "Programmable Power Supply" feature (PPS)
 in which the sink requests a range of voltages (e.g. 3.3 to 11 Volts) at an
 operating current. The source would initially try to provide the highest
-voltage but if the current draw exceeded the specified operating current then
-the source would reduce the voltage until an equilibrium point was reached.
-This is called current limiting (CL) or constant current (CC) mode but the
-abbreviation CC is obviosly confusing. The CL function in the PD source is
-typically done via hardware which is typically a bit safer (and faster) than
-doing it with software. That type of current limiting is very useful for
-charging Lithium Ion batteries
+voltage in requested range but if the current draw exceeded the specified
+operating current then the source would reduce the voltage until an
+equilibrium point was reached. This is called current limiting (CL) or
+constant current (CC) mode but the abbreviation CC is obviously confusing.
+The CL function in the PD source is typically done via hardware which is
+typically a bit safer (and faster) than doing it with software. That type of
+current limiting is very useful for charging Lithium Ion batteries.
 .SH AUTHOR
 Written by Doug Gilbert
 .SH "REPORTING BUGS"
