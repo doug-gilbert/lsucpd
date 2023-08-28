@@ -10,6 +10,10 @@ bin_PROGRAMS = lsucpd
 ## CXX = g++
 ## CXX = clang++
 
+## if NEED_LIB_FMT
+## LIBS="$LIBS -lfmt"
+## endif
+
 if DEBUG
 # This is active if --enable-debug given to ./configure
 DBG_CFLAGS = -Wextra -Wmisleading-indentation -Wduplicated-cond -Wlogical-op -Wnull-dereference -Wshadow -Wunused -Wsizeof-array-argument -Wduplicated-branches -Wjump-misses-init
@@ -54,6 +58,7 @@ lsucpd_SOURCES =	lsucpd.cpp \
 			sg_json.h \
 			sg_json.c 
 
+lsucpd_LDADD = @FMT_LDADD@
 
 distclean-local:
 	rm -rf .deps

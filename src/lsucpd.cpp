@@ -16,7 +16,7 @@
 
 // Initially this utility will assume C++20 or later
 
-static const char * const version_str = "0.90 20230827 [svn: r9]";
+static const char * const version_str = "0.90 20230828 [svn: r11]";
 
 static const char * const my_name { "lsucpd: " };
 
@@ -28,7 +28,6 @@ static const char * const my_name { "lsucpd: " };
 #include <map>
 #include <ranges>
 #include <algorithm>            // needed for ranges::sort()
-#include <source_location>
 #include <regex>
 #include <cstring>              // needed for strstr()
 #include <cstdio>               // using sscanf()
@@ -36,6 +35,10 @@ static const char * const my_name { "lsucpd: " };
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"
+#endif
+
+#ifdef HAVE_SOURCE_LOCATION
+#include <source_location>
 #endif
 
 #include "lsucpd.hpp"
@@ -74,8 +77,6 @@ using sstring=std::string;
 using sregex=std::regex;
 using strstr_m=std::map<sstring, sstring>;
 // static auto & srgx_constants { std::regex_constants };
-static auto & scout { std::cout };
-static auto & scerr { std::cerr };
 
 static const fs::directory_iterator end_itr { };
 static const sstring empty_str { };
@@ -302,6 +303,8 @@ pdo_e_to_str(enum pdo_e p_e)
     }
 }
 
+#ifdef HAVE_SOURCE_LOCATION
+
 // For error processing, declaration with default arguments is in lsucpd.hpp
 void
 pr2ser(int vb_ge, const std::string & emsg,
@@ -386,6 +389,61 @@ pr4ser(int vb_ge, const std::string & e1msg, const std::string & e2msg,
             bw::print(stderr, "'{},{}': {}\n", e1msg, e2msg, e3msg);
     }
 }
+
+#else
+
+// For error processing, declaration with default arguments is in lsucpd.hpp
+void
+pr2ser(int vb_ge, const std::string & emsg,
+       const std::error_code & ec /* = { } */)
+{
+    if (vb_ge >= lsucpd_verbose)       // vb_ge==-1 always prints
+        return;
+    if (emsg.size() == 0) {     /* shouldn't need location.column() */
+        if (lsucpd_verbose > 1)
+            bw::print(stderr, "no location information\n");
+        else
+            bw::print(stderr, "pr2ser() called but no message?\n");
+    } else if (ec)
+        bw::print(stderr, "{}, error: {}\n", emsg, ec.message());
+    else
+        bw::print(stderr, "{}\n", emsg);
+}
+
+// For error processing, declaration with default arguments is in lsucpd.hpp
+void
+pr3ser(int vb_ge, const std::string & e1msg,
+       const char * e2msg /* = nullptr */,
+       const std::error_code & ec)
+{
+    if (vb_ge >= lsucpd_verbose)       // vb_ge==-1 always prints
+        return;
+    if (e2msg == nullptr)
+        pr2ser(vb_ge, e1msg, ec);
+    else if (ec)
+        bw::print(stderr, "'{}': {}, error: {}\n", e1msg, e2msg,
+                  ec.message());
+    else
+        bw::print(stderr, "'{}': {}\n", e1msg, e2msg);
+}
+
+// For error processing, declaration with default arguments is in lsucpd.hpp
+void
+pr4ser(int vb_ge, const std::string & e1msg, const std::string & e2msg,
+       const char * e3msg /* = nullptr */, const std::error_code & ec)
+{
+    if (vb_ge >= lsucpd_verbose)       // vb_ge==-1 always prints
+        return;
+    if (e3msg == nullptr)
+        pr3ser(vb_ge, e1msg, e2msg.c_str(), ec);
+    else if (ec)
+        bw::print(stderr, "'{},{}': {}, error: {}\n", e1msg, e2msg,
+                  e3msg, ec.message());
+    else
+        bw::print(stderr, "'{},{}': {}\n", e1msg, e2msg, e3msg);
+}
+
+#endif
 
 static void
 regex_ctor_noexc(std::basic_regex<char> & pat, const sstring & filt,
@@ -1196,7 +1254,7 @@ scan_for_typec_obj(bool & ucsi_psup_possible, struct opts_t * op)
         op->tc_de_v.push_back(de);
     }
     if (ecc)
-        pr3ser(-1, sc_typec_pt, "failed in iterate of scan directory", ec);
+        pr3ser(0, sc_typec_pt, "failed in iterate of scan directory", ec);
     return ecc;
 
 }
@@ -1484,6 +1542,7 @@ main(int argc, char * argv[])
         char c[32];
         static const int clen = sizeof(c);
 
+#if 0
         if (ucsi_psup_possible) {
             for (fs::directory_iterator itr(sc_powsup_pt, dir_opt, ecc);
                  (! ecc) && itr != end_itr;
@@ -1495,6 +1554,7 @@ main(int argc, char * argv[])
             if (ecc)
                 pr3ser(-1, sc_powsup_pt, "was scanning when failed", ecc);
         }
+#endif
 
         // associate ports (and possible partners) with pd objects
         for (size_t k = 0; k < sz; ++k, prev_elemp = elemp) {

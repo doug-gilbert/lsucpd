@@ -11,6 +11,11 @@ AC_PROG_INSTALL
 
 AC_CANONICAL_HOST
 
+AC_CHECK_HEADERS([format], [FMT_LDADD=''], [FMT_LDADD='-lfmt'], [])
+AC_SUBST(FMT_LDADD)
+
+AC_CHECK_HEADERS([source_location], [], [], [])
+
 # AM_PROG_AR is supported and needed since automake v1.12+
 ifdef([AM_PROG_AR], [AM_PROG_AR], [])
 

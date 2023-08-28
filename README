@@ -46,7 +46,7 @@ lsucpd.
 This project should be regarded as "work-in-progress" due to its immaturity
 and the kernel support could be summarized as "shaky". Often after removing
 and reconnecting USB-C cables carrying power, the ucsi_acpi and typec_ucsi
-modules need to be removed then re-installed on the test platofrm. That
+modules need to be removed then re-installed on the test platform. That
 does not inspire confidence.
 
 Not known is which versions of Intel and AMD CPUs will work apart from the
@@ -187,6 +187,8 @@ use 28 Volts and Apple provides a 140 Watt USB PD (EPR) charger.
 
 Building package
 ================
+The code can be found at: https://github.com/doug-gilbert/lsucpd
+
 Installation instructions are in the INSTALL file.
 
 Various options can be given to the ./configure script. Those
@@ -204,8 +206,21 @@ and will place binaries in the /usr/local/bin directory.
 
 The code is written in C++ and assumes the features found in C++20 so
 a relatively recent compiler will be required.
+GNU and Clang C++ compilers forgot to add "partially" when they claimed
+to support C++20. Areas of pain are the <format> and <source_location>
+headers. Clang++ 14 was worse: it supported the <source_location> header
+but not its functionality.
 
+Here are some binary packages:
+  Ubuntu 22.04 LTS:
+	https://doug-gilbert.github.io/p/lsucpd_0.90-0.1_amd64.deb
+  Fedora 38:
+	https://doug-gilbert.github.io/p/lsucpd-0.90-1.x86_64.rpm
+
+Finally it is best to keep expectations low, especially if the
+/sys/class/typec directory doesn't exist ...
+ 
 
 Douglas Gilbert  <dgilbert@interlog.com>
-27th August 2023
-lsucpd version/release 0.90 [svn revision: 9]
+28th August 2023
+lsucpd version/release 0.90 [svn revision: 11]
