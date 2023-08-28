@@ -18,8 +18,61 @@ connector on a laptop) with one line output for each port. Note that not
 all USB-C ports support PD. For those ports that do support PD that are
 also connected to another USB-C PD device, a "port<n>-partner" is shown
 to the right of each line output by lsucpd. The direction that power is
-flowing is indicated by "===>" or "<===" between each port<n> and
+flowing is indicated by "====>>" or "<<====" between each port<n> and
 port<n>-partner.
+
+Project Status
+--------------
+Can do:
+    - show relationship between USB Type C objects (e.g. port0 and
+      port1-partner) and "usb_power_delivery" objects (e.g. pd1 and pd7)
+    - show the source and sink capabilities of both ends of existing
+      PD connections
+Cannot do (yet):
+    - show the PD contract that is active. In USB PD jargon this requires
+      the active RDO to be visible via sysfs
+    - output JSON instead of plain text
+    - show the actual voltage and current (and its direction) at the
+      time this utility is executed
+
+The last one is aspirational and would probably require extra hardware.
+
+This is the initial version of this utility and has only been tested on one
+platform: Thinkpad X13 G3 by Lenovo. That platform relies on the UCSI
+interface exposed via sysfs starting with the Linux kernel 6 series (e.g.
+lk 6.4). Note that normal, non-root user privileges are sufficient to use
+lsucpd.
+
+This project should be regarded as "work-in-progress" due to its immaturity
+and the kernel support could be summarized as "shaky". Often after removing
+and reconnecting USB-C cables carrying power, the ucsi_acpi and typec_ucsi
+modules need to be removed then re-installed on the test platofrm. That
+does not inspire confidence.
+
+Not known is which versions of Intel and AMD CPUs will work apart from the
+one from the above laptop: Intel i5-1240P. Intel calls that "12th generation"
+which was superseded this year by the 13th generation. So this utility most
+likely will only work with recent laptops.
+
+Bugs, suggestions, or reports of success on other platforms can be sent to
+this email address or to "Issues" at:
+    https://github.com/doug-gilbert/lsucpd
+
+Like lsscsi, this utility has a --sysfsroot=SPATH option that allows it to
+data-mine in another sub-tree (other than /sys ). That "other sub-tree" can
+be from another machine (perhaps as a compressed tarball) and would be very
+useful to the author in debugging problems. There is another utility
+at github:
+    https://github.com/doug-gilbert/clone_pseudo_fs
+designed to clone the likes of sysfs, procfs and devfs. The lsucpd utility
+relies only on sysfs.
+
+Some background for USB PD in the Linux kernel is discussed in this post:
+    https://marc.info/?l=linux-usb&m=169278141600478&w=2
+
+The next sections of this document can be safely ignored for those familiar
+with USB PD and the electrical concepts that underpin it. Instructions for
+building this package are in the last section.
 
 
 USB-C PD details
@@ -32,18 +85,18 @@ There are two USB standards covering this area, recent versions are:
 Both these documents are intimidating in size (446 and 870 pages
 respectively) but are freely available at usb.org in the Document library.
 Both documents have extensive "Terms and Abbreviations" sections (1.5 and
-1.6 respectively) that are very useful references because their are a lot
+1.6 respectively) that are very useful references because there are a lot
 of obscure terms. For example the PD document summarizes the difference
 between SOP' packet and SOP'' packet.
 
 USB.org's use of release, revision and version defies logic. The above
 standard names are taken from their front pages. Interconnects complying
-with 1) do not necessarily support 2) (i.e. PD). In the absence of PD,
-resistors on the CC lines determine which end is the source/host and which
-end is the the sink/device. USB PD Revision 1 is history (an experiment that
-failed). USB PD Revision 2 introduced fixed Vbus voltages up to 20 Volts and
-with an appropriate ("Emarked") cable could carry 5 Amps for 100 Watts. USB
-PD Revision 3 introduced the Programmably Power Supply (PPS) optional
+with 1) do not necessarily support 2) (i.e. the PD protocol). In the absence
+of PD, resistors on the CC lines determine which end is the source/host and
+which end is the the sink/device. USB PD Revision 1 is history (an experiment
+that failed). USB PD Revision 2 introduced fixed Vbus voltages up to 20 Volts
+and with an appropriate ("Emarked") cable could carry 5 Amps for 100 Watts.
+USB PD Revision 3 introduced the Programmable Power Supply (PPS) optional
 capability which included current limiting (CL) by the source. Then USB PD
 Revision 3.1 introduced "Extended Power Range" (EPR) with fixed voltages at
 28, 36 and 48 Volts. To avoid confusion, all active PD standards prior to
@@ -52,8 +105,8 @@ adjustable voltage supply (AVS) range of 15 to 48 Volts _without_ current
 limiting.
 
 There are two power roles: source (power provider) and sink (power consumer).
-USB-C power banks and laptops can often be both, but a single port cannot
-only be one at a time. The USB PD term for this is "Dual Role Power" (DRP)
+USB-C power banks and laptops can often be both, but a single port can only
+be one at a time. The USB PD term for this is "Dual Role Power" (DRP)
 but most laptops, at this time, are not true DRP in the USB PD sense; they
 tend to fall back to USB-A 5 Volt source/host mode when talking to a USB
 memory key which is very unlikely to support USB PD. In a similar way there
@@ -90,7 +143,7 @@ All electrical conductors have resistance which converts part of the current
 passing through them to heat. That is usually wasteful (unless it is winter).
 Georg Ohm is credited with the formula that bears his name:
    V = I . R	   (3)
-where V is in Volts, I is current in Amps and R is on Ohms.
+where V is in Volts, I is current in Amps and R is in Ohms.
 
 Combining formula (2) and (3) by substituting V gives;
   P = I^2 . R      (4)
@@ -98,12 +151,13 @@ Combining formula (2) and (3) by substituting V gives;
 This is sometimes called the "i-squared-r" formula that even Elon Musk knows
 about. Importantly it is the amount of power lost in a conductor or cable.
 Resistance typically doubles when length (of a cable) doubles. Also for a
-PD cable power is lost both in the Vbus wire and the Ground wire (which
+PD cable, power is lost both in the Vbus wire and the Ground wire (which
 usually includes the shield). So that is two times the length of the cable.
 Formula (4) tells us to reduce I as much as possible to reduce power lost
-on the cable. Formula (2) tells us when we reduce I we must increase V to
+in the cable. Formula (2) tells us when we reduce I we must increase V to
 maintain the same P sent across the cable. [For completeness:
-superconductors have zero resistance, typically at cryrogenic temperatures.]
+superconductors have "zero" resistance, typically at cryogenic
+temperatures.]
 
 Direct Current (DC) refers to the situation where if V and I change, it
 is relatively slow and not periodic. In DC circuits typically the V
@@ -117,17 +171,18 @@ varying periodically.
 Electric vehicles (EVs) typically have two electrical systems, a high
 voltage one at 400 or 800 Volts (DC) for traction; and a low voltage
 one for everything else. The low voltage electrical system has been
-traditionally set at 12 Volts DC (and 6 Volts 70 years ago). Elon Musk
+traditionally set at 12 Volts DC (or 6 Volts 70 years ago). Elon Musk
 says that his company can save over 100 kg of copper in cables by
 increasing the low voltage system from 12 to 48 Volts.
 
 Higher voltages can be dangerous for humans. It is generally considered
 that voltages above 60 Volts (DC) can be harmful. In practice (allowing
-for some overvoltage situations) 48 Volts has been chosen as the highest
+for some over-voltage situations) 48 Volts has been chosen as the highest
 safe nominal voltage (DC). Both the car industry (for non-traction
 purposes) and USB-C PD EPR have chosen 48 Volts DC as their highest
 delivery voltage. These are for systems that humans may come in contact
-with.
+with. Most laptops use around 20 Volts DC while some large MacBooks
+use 28 Volts and Apple provides a 140 Watt USB PD (EPR) charger.
 
 
 Building package
@@ -147,5 +202,10 @@ or
 Note that the final 'make install' will usually require root permissions
 and will place binaries in the /usr/local/bin directory.
 
-Douglas Gilbert
-18th August 2023
+The code is written in C++ and assumes the features found in C++20 so
+a relatively recent compiler will be required.
+
+
+Douglas Gilbert  <dgilbert@interlog.com>
+27th August 2023
+lsucpd version/release 0.90 [svn revision: 9]

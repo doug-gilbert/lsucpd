@@ -3,10 +3,10 @@
 lsucpd \- list USB-C Power Delivery objects
 .SH SYNOPSIS
 .B lsucpd
-[\fI\-\-caps\fR] [\fI\-\-help\fR] [\fI\-\-json[=JO]\fR]
-[\fI\-\-js\-file=JFN\fR] [\fI\-\-long\fR] [\fI\-\-sysfsroot=PATH\fR]
-[\fI\-\-verbose\fR] [\fI\-\-version\fR] [\fIFILTER ... \fR]
-[\fIH:C:T:L\fR]
+[\fI\-\-caps\fR] [\fI\-\-data\fR] [\fI\-\-help\fR]
+[\fI\-\-json[=JO]\fR] [\fI\-\-js\-file=JFN\fR] [\fI\-\-long\fR]
+[\fI\-\-sysfsroot=PATH\fR] [\fI\-\-verbose\fR] [\fI\-\-version\fR]
+[\fIFILTER ... \fR]
 .SH DESCRIPTION
 .\" Add any additional description here
 The first part of this utility's name (i.e. "ls") comes from the Unix
@@ -49,23 +49,24 @@ to the right of line for the corresponding port.
 .PP
 A simple example:
     $ lsucpd
-     port0 [pd0]  <<===  partner: [pd8]
+     port0 [pd0]  <<====  partner: [pd8]
      port1 [pd1]  > {5V, 0.9A}
 .PP
-This shows that the host has two USB Type C receptacles: port0 and port1.
-Both ports are USB PD capable with endpoints named pd0 and pd1 respectively.
-The fact that port 0 has a partner indicates a USB C male to male cable
-is connected to port 0 and what seems like a power adapter at the other end
-whose endpoint is associated with pd8. sysfs indicates power negotiated by
-the USB PD protocol is flowing in the direction of the arrow: from pd8
-to pd0. It would be useful to indicate the active contract is 20 Volts at
-a maximum of 4.5 Amps to the right of each line but the active RDO (Request
-Data Object) is not being properly reported in lk 6.4 series kernels.
+This shows that the Linux machine (e.g. a laptop) has two USB Type C
+receptacles: port0 and port1. Both ports are USB PD capable with endpoints
+named pd0 and pd1 respectively. The fact that port 0 has a partner indicates
+a USB C male to male cable is connected to port 0 and what seems like a power
+adapter at the other end whose endpoint is associated with pd8. sysfs
+indicates power negotiated by the USB PD protocol is flowing in the direction
+of the arrow: from pd8 to pd0. It would be useful to indicate the active
+contract is 20 Volts at a maximum of 4.5 Amps to the right of that line but
+the active RDO (Request Data Object) is not being properly reported in lk 6.4
+series kernels.
 .PP
 The second line in the example output above shows that nothing is connected
 to port1 but if it was, port1 would report that it can source 5 Volts at
 0.9 Amps. More likely that port can source 1.5 Amps and the value shown
-above (real output) is slightly misreported.
+above (real output) is misreported.
 .PP
 This utility can be categorized as "beta" software, amongst other reasons
 being that USB PD reporting from the Linux kernel (currently lk 6.4) has
@@ -80,13 +81,100 @@ long options can also take underscore, and vice versa (e.g.
 under the PD protocol commences the sink and source swap "capabilities"
 message. For the standard power range (SPR) each capabilities message will
 be made of up to 7 PDOs (power data objects).
-reduces one line per device output to the tuple and the primary device name.
-This may simplify scripts that process the output of this utility. With the
-\fI\-\-generic\fR option it will show on each line the tuple (from which
-the bsg pass\-through device name can be deduced), the primary device
-name (which the block subsystem uses) and the sg device name (also a
-pass\-through).
 .br
+If this option is given once then every sink and source PDO is summarized
+in a single line like this:
+    $ lsucpd -c
+     port0 [pd0]  <<====  partner: [pd30]
+
+    > pd0: has NO source capabilities
+    > pd0: sink capabilities:
+      >> 1:fixed_supply; fixed: 5.00 Volts, 3.00 Amps (op)
+      >> 2:variable_supply; variable: 5.00 to 20.00 Volts, 4.75 Amps (op)
+      >> 3:battery; battery: 5.00 to 20.00 Volts, 95.00 Watts (op)
+    > pd30: source capabilities:
+      >> 1:fixed_supply; fixed: 5.00 Volts, 3.00 Amps (max)
+      >> 2:fixed_supply; fixed: 9.00 Volts, 3.00 Amps (max)
+      >> 3:fixed_supply; fixed: 12.00 Volts, 3.00 Amps (max)
+      >> 4:fixed_supply; fixed: 15.00 Volts, 3.00 Amps (max)
+      >> 5:fixed_supply; fixed: 20.00 Volts, 5.00 Amps (max)
+      >> 6:programmable_supply; pps: 3.30 to 20.00 Volts, 5.00 Amps (max)
+    > pd30: has NO sink_caps
+.br
+The one line PDO summaries are on lines that start with ">>". The part prior
+to the semi\-colon is a directory name in sysfs where the data was found.
+The leading number (e.g. 3 in "3:fixed_supply") is the PDO index, a value
+that starts at 1.
+.br
+If this option is given twice, those summaries are expanded as shown here:
+    $ lsucpd -cc
+    > pd0: has NO source capabilities
+    > pd0: sink capabilities:
+      >> 1:fixed_supply
+          dual_role_data='0'
+          dual_role_power='0'
+          fast_role_swap_current='0'
+          higher_capability='0'
+          operational_current='3000mA'
+          unchunked_extended_messages_supported='0'
+          unconstrained_power='0'
+          usb_communication_capable='0'
+          voltage='5000mV'
+      >> 2:variable_supply
+          maximum_voltage='20000mV'
+          minimum_voltage='5000mV'
+          operational_current='4750mA'
+      >> 3:battery
+          maximum_voltage='20000mV'
+          minimum_voltage='5000mV'
+          operational_power='95000mW'
+.br
+The output has been pruned, just showing the capabilities for pd0. Per
+the PD specification, the first PDO must always be for 5 Volts and will
+usually be for 3 Amps. What is more interesting is all the other settings
+in the first PDO which are displayed as name='value' pairs. Their
+definitions can be found in the PD specification, typically with the
+underscore in the name replaced by a space and the first letter capitalized.
+.br
+If this option is given three times, the previous output is pruned to
+only show the capabilities of the first PDO. This is done because only the
+first PDO has settings other than those relating to voltage, current and/or
+power. Those settings (e.g. dual_role_data and dual_role_power) apply to
+all the higher number PDOs.
+.br
+In the standard power range (SPR) the maximum number of PDOs is 7. If no
+source or sink PDOs are given, then a sink PDO of 5 Volts (Vsafe5v) is
+assumed. The extended power range (EPR) has up to 11 PDOs but at this time
+EPR is not supported by Linux.
+.TP
+\fB\-d\fR, \fB\-\-data\fR
+USB data transmission protocols are asymmetric with one end known as
+the 'host' usually issuing commands and the other end known as the "device"
+usually acting on those commands. Prior to USB PD the host was always the
+power source and the device end consumed power (a.k.a. the "sink"). In
+USB PD if both ends are "dual-role data" capable, then the host and
+device data roles can be swapped, if both ends agree.
+.br
+When this option is given, a '|>' or '<|' annotation _may_ replace the
+trailing two "==" on the power direction indication. For example:
+    $ lsucpd \-d
+    port0 [pd0]  <<====  partner: [pd24]
+    port1 [pd1]  <<==|>  partner: [pd25]
+.br
+In the above example port0's partner is a USB-C PD power adapter while
+port1's partner is a USB-C (thunderbolt 3) hub which has its own large
+power supply. Both the laptop's port0 and port1 are power sinks but only
+port1 has the '<<==|>' annotation. That annotation means port1 is a
+power sink but is a USB host while its partner (the hub) is a power
+source and a USB device. Why is port0's direction annotation '<<===='
+which is that same as it would be if the \fI\-\-data\fR option was not
+given?
+.br
+The answer is hidden in pd24 source capabilities' first PDO. There is a
+setting in there called "USB Communications Capable" and it is zero
+indicating that pd24 (port0-partner) does not use D+, D- nor any of the
+superspeed lines. Many if not most USB-C power adapters will have that
+bit cleared, so talking about USB host and device is not relevant.
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 Output the usage message and exit.
@@ -114,6 +202,24 @@ the power_supply subject in sysfs (i.e. under /sys/class/power_supply/ )
 does not properly match the associated PD information (e.g. the sysfs
 power_supply interface has no concept of power direction: sink or source)
 but hopefully that will improve in the near future.
+.br
+For ports, the regular files in the /sys/class/typec/port<n>[\-partner]
+directory are shown in name='value' form when this option is given.
+.br
+If this option is given twice an extra check is made for an entry whose
+filename is "number_of_alternate_modes" in the directory mentioned in the
+previous paragraph. If found and the value is greater than zero then
+that port (typically the port<n>\-partner) supports 1 or more alternate
+modes. If that value is 1 then a line like this appear in the output:
+     Alternate mode: /sys/class/typec/port0-partner/port0-partner.0
+.br
+Under that directory should be the regular files in name='value' form.
+One of those should be the description, for example:
+       description='DisplayPort'
+.br
+Extra information will be supplied when the \fI\-\-verbose\fR option
+is given. However its output it is sent to stderr and aimed more at
+helping the author debug the code.
 .TP
 \fB\-y\fR, \fB\-\-sysfsroot\fR=\fIPATH\fR
 assumes sysfs is mounted at PATH instead of the default '/sys' . If this
@@ -133,8 +239,9 @@ which has two USB-C ports. Lenovo advertises them as "USB4" with
 Thunderbolt 4 support and "Power Delivery 3.0". So (some) SPR support but
 no EPR support. With nothing connected to those ports:
     $ lsupd
-    port0 [pd0]  <     
+    port0 [pd0]  <
     port1 [pd1]  <
+.br
 The "typec" identifier are shown first on each line: port0 and port1,
 followed by the usb_power_delivery identifier in square brackets: pd0
 and pd1. The '<' indicates the direction power will flow and for both
@@ -144,46 +251,83 @@ or the '>'. In this case nothing is connected.
 .PP
 Now with a USB-C memory stick connected to port0:
     $ lsucpd
-    port0 [pd0]  > {5V, 1.5A}   partner: 
+    port0 [pd0]  > {5V, 1.5A}   partner:
     port1 [pd1]  <
+.br
 port0 now has an unidentified 'partner' and power is being sourced by
-the laptop: at a fixed volatge of 5 Volt with a 1.5 Amp maximum. Nothing
+the laptop: at a fixed voltage of 5 Volt with a 1.5 Amp maximum. Nothing
 is connected to port 1.
 .PP
 A Dell 130 Watt USB-C power adapter is now connected to port1:
     $ lsucpd
-    port0 [pd0]  > {5V, 1.5A}   partner: 
-    port1 [pd1]  <<===  partner: [pd11]
-The '<<===' indicates a PD contract is active and the usb_power_delivery
+    port0 [pd0]  > {5V, 1.5A}   partner:
+    port1 [pd1]  <<====  partner: [pd11]
+.br
+The '<<====' indicates a PD contract is active and the usb_power_delivery
 identifier associated with the Dell power adapter is pd11. If the RDO
 of that PD contract was available via sysfs (it isn't which is a hardware
 of kernel issue) it would show '20V, 4.5A'.
 .PP
 Lot of information is available through the sink and source capabilities
-that each end of a PD connection advertise to one another:
-    $ lsucpd --caps pd11
-    > pd11: source capabilities:
-      >>> 1:fixed_supply
+that each end of a PD connection advertise to one another. The amount of
+information output is controlled by the number of times the \fI\-\-caps\fR
+option is given:
+    $ lsucpd  pd38
+    > pd38: source capabilities:
+      >> 1:fixed_supply; fixed: 5.00 Volts, 3.00 Amps (max)
+      >> 2:fixed_supply; fixed: 9.00 Volts, 3.00 Amps (max)
+      >> 3:fixed_supply; fixed: 12.00 Volts, 3.00 Amps (max)
+      >> 4:fixed_supply; fixed: 15.00 Volts, 3.00 Amps (max)
+      >> 5:fixed_supply; fixed: 20.00 Volts, 5.00 Amps (max)
+      >> 6:programmable_supply; pps: 3.30 to 20.00 Volts, 5.00 Amps (max)
+.br
+When a "pd" filter argument is given (e.g. pd38) the \fI\-\-caps\fR option
+is assumed (otherwise nothing would be output). If a \fI\-\-caps\fR option
+is given with a "pd" filter it is treated as if the \fI\-\-caps\fR option
+had been given twice:
+    $ lsucpd -c pd38
+    > pd38: source capabilities:
+      >> 1:fixed_supply
           dual_role_data='1'
           dual_role_power='0'
-          maximum_current='1000mA'
+          maximum_current='3000mA'
           unchunked_extended_messages_supported='0'
           unconstrained_power='1'
           usb_communication_capable='0'
           usb_suspend_supported='0'
           voltage='5000mV'
-      >>> 2:fixed_supply
-          maximum_current='4500mA'
-          voltage='18000mV'
-      >>> 3:fixed_supply
-          maximum_current='4500mA'
+      >> 2:fixed_supply
+          maximum_current='3000mA'
+          voltage='9000mV'
+      >> 3:fixed_supply
+          maximum_current='3000mA'
+          voltage='12000mV'
+      >> 4:fixed_supply
+          maximum_current='3000mA'
+          voltage='15000mV'
+      >> 5:fixed_supply
+          maximum_current='5000mA'
           voltage='20000mV'
-    > pd11: sink capabilities:
-Here the capabilities of pd11 (only) are output. The filter argument (i.e.
-pd11) is optional and used here to limit the amount of output. The output
-show the DELL adapter supports 3 fixed source PDOs and 0 sink PDOs.
-optional
-xxxxxxxxxxxxxxx
+      >> 6:programmable_supply
+          maximum_current='5000mA'
+          maximum_voltage='20000mV'
+          minimum_voltage='3300mV'
+          pps_power_limited='0'
+    > pd38: has NO sink_caps
+.br
+This is the same data as the previous data, just spread out with
+the extra fields in the first PDO shown.
+.PP
+Here is an example using the \fI\-\-data\fR option:
+    $ lsucpd \-\-data
+    port0 [pd0]  |>==>>  partner: [pd26]
+    port1 [pd1]  <<==|>  partner: [pd27]
+.br
+It shows that power (probably 5 Volts at a maximum of 3 Amps) is flowing
+from the laptop's port0 to its partner which use a USB-C DisplayPort
+adapter. port1 is consuming power (i.e. it is a sink) sent by a powered
+USB-C hub. In both cases the laptop plays the role of a USB host and each
+partner is a USB device.
 .SH INTRODUCTION TO USB\-C PD
 Here are some USB\-C PD basics. The plan is that only one type of cable will
 be needed: a USB-C male to male cable with up to 24 pins carrying power and
@@ -275,7 +419,11 @@ current limiting is very useful for charging Lithium Ion batteries.
 .SH AUTHOR
 Written by Doug Gilbert
 .SH "REPORTING BUGS"
-Report bugs to <dgilbert at interlog dot com>.
+Report bugs to <dgilbert at interlog dot com>. Cloning/copying sysfs from a
+problematic machine will help a lot in debugging. The clone_pseudo_fs
+utility is designed to do that job: by default it copies /sys to /tmp/sys .
+Any sensitive data could then be pruned out of /tmp/sys after which it
+could be sent to the author as a compressed tarball.
 .SH COPYRIGHT
 Copyright \(co 2023 Douglas Gilbert
 .br
@@ -287,3 +435,4 @@ warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 .B lsusb
 .B lsblk
 .B lsscsi(lsscsi)
+.B clone_pseudo_fs(clone_pseudo_fs, github)

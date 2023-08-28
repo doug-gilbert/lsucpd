@@ -14,10 +14,9 @@
  *
  */
 
-
 // Initially this utility will assume C++20 or later
 
-static const char * const version_str = "0.90 20230824 [svn: r8]";
+static const char * const version_str = "0.90 20230827 [svn: r9]";
 
 static const char * const my_name { "lsucpd: " };
 
@@ -167,9 +166,13 @@ struct pdo_elem {
 // created them.
 struct upd_dir_elem : public fs::directory_entry {
     upd_dir_elem() = default;
-    upd_dir_elem(const fs::directory_entry & bs) : fs::directory_entry(bs) { };
+    // following needed to make this object from instance of its base class
+    upd_dir_elem(const fs::directory_entry & bs, bool is_partner)
+                : fs::directory_entry(bs), is_partner_(is_partner) { };
 
     sstring match_str_;         // pd<pd_num>
+    bool is_partner_ { };       // only used by --data (direction) option
+    bool usb_comms_incapable_ { };  // only used by --data (direction) option
 
     std::vector<pdo_elem> source_pdo_v_;
     std::vector<pdo_elem> sink_pdo_v_;
@@ -179,10 +182,11 @@ struct upd_dir_elem : public fs::directory_entry {
 // scope. Don't mark with trailing _
 struct opts_t {
     bool do_json;
+    bool caps_given;
+    bool do_data_dir;
     bool verbose_given;
     bool version_given;
     int do_caps;
-    int do_data_dir;
     int do_help;
     int do_long;
     const char * pseudo_mount_point;
@@ -227,11 +231,14 @@ static const char * const typec_s = "typec";
 static const char * const powsup_sn = "power_supply";
 static const char * const src_cap_s = "source-capabilities";
 static const char * const sink_cap_s = "sink-capabilities";
+static const char * const src_ucc_s =
+        "source-capabilities/1:fixed_supply/usb_communication_capable";
 static const char * const fixed_ln_sn = "fixed_supply";
 static const char * const batt_ln_sn = "battery";
 static const char * const vari_ln_sn = "variable_supply";
 static const char * const pps_ln_sn = "programmable_supply";
 static const char * const avs_ln_sn = "adjustable_supply";
+static const char * const num_alt_modes = "number_of_alternate_modes";
 
 static fs::path sc_pt;
 static fs::path sc_typec_pt;
@@ -249,7 +256,11 @@ static const char * const usage_message1 =
     "              [--long] [--sysfsroot=SPATH] [--verbose] [--version]\n"
     "              [FILTER ...]\n"
     "  where:\n"
-    "    --caps|-c         list pd sink and source capabilities\n"
+    "    --caps|-c         list pd sink and source capabilities. Once: one "
+    "line\n"
+    "                      per capability; twice: name: 'value' pairs; "
+    "three\n"
+    "                      times: PDO index 1 only (first PDO)\n"
     "    --data|-d         show USB data direction {device} <| {host}\n"
     "    --help|-h         this usage information\n"
     "    --json[=JO]|-j[=JO]     output in JSON instead of plain text\n"
@@ -443,6 +454,7 @@ get_value(const fs::path & dir_or_fn_pt, const sstring & base_name,
     bp = val_out.data();
     if (nullptr == (f = fopen(vnm.c_str(), "r"))) {
         ec.assign(errno, std::system_category());
+        print_err(6, "{}: unable to fopen: {}\n", __func__, vnm.string());
         return ec;
     }
     if (nullptr == fgets(bp, max_value_len, f)) {
@@ -893,7 +905,7 @@ process_pw_d_dir_mode(const tc_dir_elem * elemp, bool is_partn, int clen,
 {
     const bool dd { data_dir && elemp->data_role_known_ };
     const auto & pom { elemp->pow_op_mode_ };
-    static const char * dir_tail { "===" };
+    static const char * dir_tail { "====" };
     static const char * s_tail { "==" };
     static const char * p_left { "<|" };
     static const char * p_right { "|>" };
@@ -953,9 +965,21 @@ process_pw_d_dir_mode(const tc_dir_elem * elemp, bool is_partn, int clen,
         snprintf(c, clen, "   ");
 }
 
-static std::error_code
-list_port(const tc_dir_elem & entry, struct opts_t * /* op */)
+static bool
+pd_is_partner(int pd_inum, const struct opts_t * op)
 {
+    for (const auto& entry : op->tc_de_v) {
+        if (pd_inum == entry.pd_inum_)
+            return entry.is_partner();
+    }
+    return false;
+}
+
+static std::error_code
+list_port(const tc_dir_elem & entry, const struct opts_t * op)
+{
+    bool want_alt_md = (op->do_long > 1);
+    unsigned int u { };
     std::error_code ec { };
     const fs::path & pt { entry.path() };
     const sstring basename { filename_as_str(pt) };
@@ -967,8 +991,30 @@ list_port(const tc_dir_elem & entry, struct opts_t * /* op */)
     else
         bw::print("{}{} :\n", (is_ptner ? "  " : "> "), basename);
     if (entry.is_directory(ec) && entry.is_symlink(ec)) {
-        for (auto&& [n, v] : entry.tc_sdir_reg_m)
+        for (auto&& [n, v] : entry.tc_sdir_reg_m) {
             bw::print("      {}='{}'\n", n, v);
+            if (want_alt_md && (n == num_alt_modes)) {
+
+                if (1 != sscanf(v.c_str(), "%u", &u)) {
+                    print_err(1, "unable to decode {}\n", num_alt_modes);
+                    continue;
+                }
+            }
+        }
+        for (unsigned int k = 0; k < u; ++k) {
+            const auto alt_md_pt { entry.path() /
+                        sstring(basename + "." + std::to_string(k)) };
+            if (fs::is_directory(alt_md_pt, ec)) {
+                strstr_m nv_m;
+
+                ec = map_d_regu_files(alt_md_pt, nv_m);
+                bw::print("    Alternate mode: {}\n", alt_md_pt.string());
+                if (! ec) {
+                    for (auto&& [n, v] : nv_m)
+                        bw::print("        {}='{}'\n", n, v);
+                }
+            }
+        }
     } else {
         if (ec)
             pr3ser(-1, pt, "not symlink to directory", ec);
@@ -983,7 +1029,7 @@ list_pd(int pd_num, const upd_dir_elem & upd_d_el,
     std::error_code ec { };
 
     if (upd_d_el.source_pdo_v_.empty())
-        bw::print("> pd{}: has NO source_caps\n", pd_num);
+        bw::print("> pd{}: has NO source capabilities\n", pd_num);
     else {
         bw::print("> pd{}: source capabilities:\n", pd_num);
         for (const auto& a_pdo : upd_d_el.source_pdo_v_) {
@@ -1067,7 +1113,7 @@ list_pd(int pd_num, const upd_dir_elem & upd_d_el,
 }
 
 static std::error_code
-search_for_typec_obj(bool & ucsi_psup_possible, struct opts_t * op)
+scan_for_typec_obj(bool & ucsi_psup_possible, struct opts_t * op)
 {
     std::error_code ec { };
     std::error_code ecc { };
@@ -1155,6 +1201,51 @@ search_for_typec_obj(bool & ucsi_psup_possible, struct opts_t * op)
 
 }
 
+static std::error_code
+scan_for_upd_obj(struct opts_t * op)
+{
+    bool want_ucc = op->do_data_dir;
+    std::error_code ec { };
+    std::error_code ecc { };
+
+    for (fs::directory_iterator itr(sc_upd_pt, dir_opt, ecc);
+         (! ecc) && itr != end_itr;
+         itr.increment(ecc) ) {
+        const fs::path & pt { itr->path() };
+        int k;
+
+        if (itr->is_directory(ec)) {
+            if (1 != sscanf(pt.filename().c_str(), "pd%d", &k))
+                pr2ser(-1, "unable to find 'pd<num>' to decode");
+            else {
+                upd_dir_elem ue(*itr, pd_is_partner(k, op));
+
+                if (want_ucc && ue.is_partner_) {
+                    sstring attr;
+
+                    ec = get_value(*itr, src_ucc_s, attr);
+                    if (ec)
+                        pr3ser(2, itr->path(), "<< failed get src_ucc", ec);
+                    else {
+                        unsigned int u;
+
+                        if (1 == sscanf(attr.c_str(), "%u", &u)) {
+                            if (u == 0)
+                                ue.usb_comms_incapable_ = true;
+                        }
+                    }
+                }
+                ue.match_str_.assign(sstring("pd") + std::to_string(k));
+                op->upd_de_m.emplace(std::make_pair(k, ue));
+            }
+        } else if (ec)
+            pr3ser(-1, pt, "failed in is_directory()", ec);
+    }
+    if (ecc)
+        pr3ser(-1, sc_upd_pt, "was scanning when failed", ecc);
+    return ecc;
+}
+
 /* Handles short options after '-j' including a sequence of short options
  * that include one 'j' (for JSON). Want optional argument to '-j' to be
  * prefixed by '='. Return 0 for good, 1 for syntax error
@@ -1166,6 +1257,7 @@ chk_short_opts(const char sopt_ch, struct opts_t * op)
     switch (sopt_ch) {
     case 'c':
         ++op->do_caps;
+        op->caps_given = true;
         break;
     case 'd':
         op->do_data_dir = true;
@@ -1223,6 +1315,7 @@ main(int argc, char * argv[])
         switch (c) {
         case 'c':
             ++op->do_caps;
+            op->caps_given = true;
             break;
         case 'd':
             op->do_data_dir = true;
@@ -1325,15 +1418,12 @@ main(int argc, char * argv[])
         filter_for_port = true;
     if (op->filter_pd_v.size() > 0) {
         filter_for_pd = true;
-        op->do_caps = 1;     // pd<n> holds caps
+        ++op->do_caps;     // pd<n> holds caps
     }
-    if (filter_for_port && filter_for_pd) {
-        print_err(-1, "can filter for ports or pd objects, but not both\n\n");
-        usage();
-        return 1;
+    if (op->do_data_dir) {
+        if (op->do_caps == 0)
+            ++op->do_caps;     // look for usb_communication_capable setting
     }
-    if (op->do_data_dir)
-        op->do_caps = 1;     // look for usb_communication_capable setting
 
     jsp = &op->json_st;
     if (op->do_json) {
@@ -1376,9 +1466,14 @@ main(int argc, char * argv[])
     sc_upd_pt = sc_pt / upd_sn;
     sc_powsup_pt = sc_pt / powsup_sn;
 
-    ec = search_for_typec_obj(ucsi_psup_possible, op);
+    ec = scan_for_typec_obj(ucsi_psup_possible, op);
     if (ec)
         return 1;
+    if ((op->do_caps > 0) || filter_for_pd) {
+        ec = scan_for_upd_obj(op);
+        if (ec)
+            return 1;
+    }
     sz = op->tc_de_v.size();
     if (sz > 1) {
         std::ranges::sort(op->tc_de_v);
@@ -1409,11 +1504,20 @@ main(int argc, char * argv[])
             j = elemp->pd_inum_;
             if (elemp->partner_) {
                 if (k > 0) {
+                    bool ddir = op->do_data_dir;
                     prev_elemp->partner_ind_ = k;
-                    process_pw_d_dir_mode(prev_elemp, true, clen, c,
-                                          op->do_data_dir);
+                    elemp->data_role_known_ = prev_elemp->data_role_known_;
+                    if (elemp->data_role_known_)
+                        elemp->is_host_ = ! prev_elemp->is_host_;
+                    if (ddir && elemp->is_source_) {
+                        const auto it { op->upd_de_m.find(j) };
+                        if ((it != op->upd_de_m.end()) &&
+                            it->second.usb_comms_incapable_)
+                            ddir = false;
+                    }
+                    process_pw_d_dir_mode(prev_elemp, true, clen, c, ddir);
                     b_ind += sg_scn3pr(b, blen, b_ind, "%s partner: ", c);
-                    if (j > 0) {        // PDO of 0x0000 is filler
+                    if (j > 0) {        // PDO of 0x0000 is place holder
 // zzzzzzzzzzzzzzzzzzzzzz
                         b_ind += sg_scn3pr(b, blen, b_ind, "[pd%d] ", j);
                     }
@@ -1464,102 +1568,81 @@ main(int argc, char * argv[])
         op->summ_out_m.emplace(std::make_pair(elemp->port_num_, b));
     }
 
-    if (filter_for_port) {
-        for (const auto& filt : op->filter_port_v) {
-            sregex pat;
+    if (filter_for_port || filter_for_pd) {
+        if (filter_for_port) {
+            for (const auto& filt : op->filter_port_v) {
+                sregex pat;
 
-            regex_ctor_noexc(pat, filt, std::regex_constants::grep |
-                                        std::regex_constants::icase, ec);
-            if (ec) {
-                pr3ser(-1, filt, "filter was an unacceptable regex pattern");
-                break;
-            }
-            for (const auto& entry : op->tc_de_v) {
-                if (regex_match_noexc(entry.match_str_, pat, ec)) {
-                    const unsigned int port_num = entry.port_num_;
-                    if (port_num == UINT32_MAX) {
-                        print_err(0, "uninitialized port number for {}\n",
-                                  entry.match_str_);
-                        continue;
-                    }
-                    bw::print("{}\n", op->summ_out_m[port_num]);
-                    if (op->do_long > 0)
-                        list_port(entry, op);
-                } else if (ec) {
-                    pr3ser(-1, filt, "filter was an unacceptable regex "
-                           "pattern");
+                regex_ctor_noexc(pat, filt, std::regex_constants::grep |
+                                            std::regex_constants::icase, ec);
+                if (ec) {
+                    pr3ser(-1, filt,
+                           "filter was an unacceptable regex pattern");
                     break;
+                }
+                for (const auto& entry : op->tc_de_v) {
+                    if (regex_match_noexc(entry.match_str_, pat, ec)) {
+                        const unsigned int port_num = entry.port_num_;
+                        if (port_num == UINT32_MAX) {
+                            print_err(0, "uninitialized port number for {}\n",
+                                      entry.match_str_);
+                            continue;
+                        }
+                        bw::print("{}\n", op->summ_out_m[port_num]);
+                        if (op->do_long > 0)
+                            list_port(entry, op);
+                    } else if (ec) {
+                        pr3ser(-1, filt, "filter was an unacceptable regex "
+                               "pattern");
+                        break;
+                    }
                 }
             }
         }
-    } else if (! filter_for_pd) {       // IOWs: no FILTER argument given
+        if (filter_for_pd) {
+            if (filter_for_port)
+                bw::print("\n");
+
+            for (const auto& filt : op->filter_pd_v) {
+                sregex pat { filt, std::regex_constants::grep |
+                                   std::regex_constants::icase };
+                for (auto&& [nm, upd_d_el] : op->upd_de_m) {
+                    if (regex_match_noexc(upd_d_el.match_str_, pat, ec)) {
+                        print_err(3, "nm={}, regex match on: {}\n", nm,
+                                  upd_d_el.match_str_);
+                        ec = populate_src_snk_pdos(upd_d_el, op);
+                        if (ec) {
+                            pr3ser(-1, upd_d_el.path(), "from "
+                                   "populate_src_snk_pdos", ec);
+                            break;
+                        }
+                        list_pd(nm, upd_d_el, op);
+                    } else if (ec) {
+                        pr3ser(-1, filt, "filter was an unacceptable regex "
+                               "pattern");
+                        break;
+                    }
+                }
+            }
+            op->caps_given = false;     // would be repeated otherwise
+        }
+    } else {       // no FILTER argument given
         for (auto&& [n, v] : op->summ_out_m) {
             if (lsucpd_verbose > 4)
                 bw::print("port={}: ", n);
             bw::print("{}\n", v);
             if (op->do_long > 0) {
                 for (const auto& entry : op->tc_de_v) {
-                    if ((! entry.partner_) && (n == entry.port_num_))
+                    if (n == entry.port_num_)
                         list_port(entry, op);
                 }
             }
         }
     }
 
-    if (op->do_caps == 0)
-        goto fini;
-
-    if (! filter_for_pd)
+    if (op->caps_given) {
         bw::print("\n");
 
-    for (fs::directory_iterator itr(sc_upd_pt, dir_opt, ecc);
-         (! ecc) && itr != end_itr;
-         itr.increment(ecc) ) {
-        const fs::path & pt { itr->path() };
-        int k;
-
-        if (itr->is_directory(ec)) {
-            if (1 != sscanf(pt.filename().c_str(), "pd%d", &k))
-                pr2ser(-1, "unable to find 'pd<num>' to decode");
-            else {
-                upd_dir_elem ue { *itr };
-
-                ue.match_str_.assign(sstring("pd") + std::to_string(k));
-                // op->upd_de_m[k] = ue;
-                // op->upd_de_m.insert(std::make_pair(k, ue));
-                op->upd_de_m.emplace(std::make_pair(k, ue));
-            }
-        } else if (ec)
-            pr3ser(-1, pt, "failed in is_directory()", ec);
-    }
-    if (ecc)
-        pr3ser(-1, sc_upd_pt, "was scanning when failed", ecc);
-    if (! filter_for_pd)
-        goto fini;
-
-    if (filter_for_pd) {
-        for (const auto& filt : op->filter_pd_v) {
-            sregex pat { filt, std::regex_constants::grep |
-                               std::regex_constants::icase };
-            for (auto&& [nm, upd_d_el] : op->upd_de_m) {
-                if (regex_match_noexc(upd_d_el.match_str_, pat, ec)) {
-                    print_err(3, "nm={}, regex match on: {}\n", nm,
-                              upd_d_el.match_str_);
-                    ec = populate_src_snk_pdos(upd_d_el, op);
-                    if (ec) {
-                        pr3ser(-1, upd_d_el.path(), "from "
-                               "populate_src_snk_pdos", ec);
-                        break;
-                    }
-                    list_pd(nm, upd_d_el, op);
-                } else if (ec) {
-                    pr3ser(-1, filt, "filter was an unacceptable regex "
-                           "pattern");
-                    break;
-                }
-            }
-        }
-    } else if (! filter_for_port) {
         for (auto&& [nm, upd_d_el] : op->upd_de_m) {
             print_err(3, "nm={}, about to populate on: {}\n", nm,
                       upd_d_el.match_str_);
@@ -1571,7 +1654,6 @@ main(int argc, char * argv[])
             list_pd(nm, upd_d_el, op);
         }
     }
-
 fini:
     if (jsp->pr_as_json) {
         FILE * fp = stdout;
