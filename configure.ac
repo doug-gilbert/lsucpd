@@ -19,15 +19,6 @@ AC_CHECK_HEADERS([source_location], [], [], [])
 # AM_PROG_AR is supported and needed since automake v1.12+
 ifdef([AM_PROG_AR], [AM_PROG_AR], [])
 
-## AC_CHECK_HEADERS([linux/nvme_ioctl.h], [AC_DEFINE_UNQUOTED(HAVE_NVME, 1, [Found NVMe])], [], [])
-## AC_CHECK_HEADERS([byteswap.h], [], [], [])
-
-### AC_PROG_LIBTOOL
-
-## AC_ARG_ENABLE([nvme-supp],
-##   AC_HELP_STRING([--disable-nvme-supp], [remove all or most NVMe code]),
-##   [AC_DEFINE_UNQUOTED(IGNORE_NVME, 1, [compile out NVMe support], )], [])
-
 AC_ARG_ENABLE([debug],
               [  --enable-debug          Turn on debugging],
               [case "${enableval}" in

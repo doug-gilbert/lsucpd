@@ -16,7 +16,7 @@
 
 // Initially this utility will assume C++20 or later
 
-static const char * const version_str = "0.90 20230828 [svn: r11]";
+static const char * const version_str = "0.90 20230906 [svn: r12]";
 
 static const char * const my_name { "lsucpd: " };
 
@@ -102,11 +102,11 @@ enum class pw_op_mode_e {
 struct tc_dir_elem : public fs::directory_entry {
     tc_dir_elem(const fs::directory_entry & bs) : fs::directory_entry(bs) { };
 
-    tc_dir_elem() : fs::directory_entry() { };
+    tc_dir_elem() noexcept : fs::directory_entry() { };
 
     // tc_dir_elem(const tc_dir_elem & ) = delete;
 
-    bool is_partner() const { return partner_; }
+    bool is_partner() const noexcept { return partner_; }
 
     bool partner_ {false}; // mark non-static member variables with trailing _
 
@@ -155,9 +155,11 @@ struct pdo_elem {
 
     mutable strstr_m ascii_pdo_m_;
 
-    friend auto operator<=>(const pdo_elem & lhs, const pdo_elem & rhs)
+    friend auto operator<=>(const pdo_elem & lhs,
+                            const pdo_elem & rhs) noexcept
         { return lhs.pdo_ind_ <=> rhs.pdo_ind_; }
-    friend auto operator==(const pdo_elem & lhs, const pdo_elem & rhs)
+    friend auto operator==(const pdo_elem & lhs,
+                           const pdo_elem & rhs) noexcept
         { return lhs.pdo_ind_ == rhs.pdo_ind_; }
 };
 
@@ -246,7 +248,7 @@ static fs::path sc_typec_pt;
 static fs::path sc_upd_pt;
 static fs::path sc_powsup_pt;
 
-static inline sstring filename_as_str(const fs::path & pt)
+static inline sstring filename_as_str(const fs::path & pt) noexcept
 {
     return pt.filename().string();
 }
@@ -284,14 +286,14 @@ static const char * const usage_message2 =
     "arguments may be 'grep basic'\nregexes.\n";
 
 static void
-usage()
+usage() noexcept
 {
     bw::print("{}", usage_message1);
     bw::print("{}", usage_message2);
 }
 
 static sstring
-pdo_e_to_str(enum pdo_e p_e)
+pdo_e_to_str(enum pdo_e p_e) noexcept
 {
     switch (p_e) {
     case pdo_e::pdo_fixed: return "fixed supply";
@@ -310,6 +312,7 @@ void
 pr2ser(int vb_ge, const std::string & emsg,
        const std::error_code & ec /* = { } */,
        const std::source_location loc /* = std::source_location::current() */)
+        noexcept
 {
     if (vb_ge >= lsucpd_verbose)       // vb_ge==-1 always prints
         return;
@@ -339,7 +342,7 @@ void
 pr3ser(int vb_ge, const std::string & e1msg,
        const char * e2msg /* = nullptr */,
        const std::error_code & ec,
-       const std::source_location loc)
+       const std::source_location loc) noexcept
 {
     if (vb_ge >= lsucpd_verbose)       // vb_ge==-1 always prints
         return;
@@ -366,7 +369,7 @@ pr3ser(int vb_ge, const std::string & e1msg,
 void
 pr4ser(int vb_ge, const std::string & e1msg, const std::string & e2msg,
        const char * e3msg /* = nullptr */, const std::error_code & ec,
-       const std::source_location loc)
+       const std::source_location loc) noexcept
 {
     if (vb_ge >= lsucpd_verbose)       // vb_ge==-1 always prints
         return;
@@ -395,7 +398,7 @@ pr4ser(int vb_ge, const std::string & e1msg, const std::string & e2msg,
 // For error processing, declaration with default arguments is in lsucpd.hpp
 void
 pr2ser(int vb_ge, const std::string & emsg,
-       const std::error_code & ec /* = { } */)
+       const std::error_code & ec /* = { } */) noexcept
 {
     if (vb_ge >= lsucpd_verbose)       // vb_ge==-1 always prints
         return;
@@ -414,7 +417,7 @@ pr2ser(int vb_ge, const std::string & emsg,
 void
 pr3ser(int vb_ge, const std::string & e1msg,
        const char * e2msg /* = nullptr */,
-       const std::error_code & ec)
+       const std::error_code & ec) noexcept
 {
     if (vb_ge >= lsucpd_verbose)       // vb_ge==-1 always prints
         return;
@@ -441,14 +444,14 @@ pr4ser(int vb_ge, const std::string & e1msg, const std::string & e2msg,
                   e3msg, ec.message());
     else
         bw::print(stderr, "'{},{}': {}\n", e1msg, e2msg, e3msg);
-}
+} noexcept
 
 #endif
 
 static void
 regex_ctor_noexc(std::basic_regex<char> & pat, const sstring & filt,
                  std::regex_constants::syntax_option_type sot,
-                 std::error_code & ec)
+                 std::error_code & ec) noexcept
 {
     ec.clear();
 
@@ -472,7 +475,7 @@ regex_ctor_noexc(std::basic_regex<char> & pat, const sstring & filt,
 // throw. Catch everything and set an arbitrary error code.
 static bool
 regex_match_noexc(const sstring & actual, const std::basic_regex<char> & pat,
-                  std::error_code & ec)
+                  std::error_code & ec) noexcept
 {
     bool res { false };
 
@@ -499,7 +502,7 @@ regex_match_noexc(const sstring & actual, const std::basic_regex<char> & pat,
 // Returns errno in ec.value() if ec() is true, else returns false for good
 static std::error_code
 get_value(const fs::path & dir_or_fn_pt, const sstring & base_name,
-          sstring & val_out, int max_value_len = 32)
+          sstring & val_out, int max_value_len = 32) noexcept
 {
     FILE * f;
     char * bp;
@@ -538,7 +541,7 @@ get_value(const fs::path & dir_or_fn_pt, const sstring & base_name,
  * with ".") are skipped. Only the first 32 bytes of each file are read. */
 static std::error_code
 map_d_regu_files(const fs::path & dir_pt, strstr_m & map_io,
-              bool ignore_uevent = true)
+              bool ignore_uevent = true) noexcept
 {
     std::error_code ecc { };
     std::error_code ec { };
@@ -578,7 +581,7 @@ map_d_regu_files(const fs::path & dir_pt, strstr_m & map_io,
 // Expect to find keys: "power_role" and "power_operation_mode" in 'm'.
 static bool
 query_power_dir(const std::map<sstring, sstring> & m, bool & is_source,
-                pw_op_mode_e & pom)
+                pw_op_mode_e & pom) noexcept
 {
     bool res = false;
     const auto it { m.find("power_role") };
@@ -620,7 +623,7 @@ query_power_dir(const std::map<sstring, sstring> & m, bool & is_source,
 // true if '[host]' found in value associated with "data_role" else sets
 // is_host to false; if not found sets is_host to false.
 static bool
-query_data_dir(const std::map<sstring, sstring> & m, bool & is_host)
+query_data_dir(const std::map<sstring, sstring> & m, bool & is_host) noexcept
 {
     bool res = false;
     const auto it { m.find("data_role") };
@@ -640,52 +643,52 @@ query_data_dir(const std::map<sstring, sstring> & m, bool & is_host)
     return res;
 }
 
-static unsigned
-get_millivolts(const sstring & name, const strstr_m & m)
+static unsigned int
+get_millivolts(const sstring & name, const strstr_m & m) noexcept
 {
     unsigned int mv;
     const strstr_m::const_iterator it = m.find(name);
 
-    if (1 == sscanf(it->second.c_str(), "%umV", &mv))
+    if ((it != m.end()) && (1 == sscanf(it->second.c_str(), "%umV", &mv)))
         return mv;
     return 0;
 }
 
-static unsigned
-get_milliamps(const sstring & name, const strstr_m & m)
+static unsigned int
+get_milliamps(const sstring & name, const strstr_m & m) noexcept
 {
     unsigned int ma;
     const strstr_m::const_iterator it = m.find(name);
 
-    if (1 == sscanf(it->second.c_str(), "%umA", &ma))
+    if ((it != m.end()) && (1 == sscanf(it->second.c_str(), "%umA", &ma)))
         return ma;
     return 0;
 }
 
-static unsigned
-get_milliwatts(const sstring & name, const strstr_m & m)
+static unsigned int
+get_milliwatts(const sstring & name, const strstr_m & m) noexcept
 {
     unsigned int mw;
     const strstr_m::const_iterator it = m.find(name);
 
-    if (1 == sscanf(it->second.c_str(), "%umW", &mw))
+    if ((it != m.end()) && (1 == sscanf(it->second.c_str(), "%umW", &mw)))
         return mw;
     return 0;
 }
 
-static unsigned
-get_unitless(const sstring & name, const strstr_m & m)
+static unsigned int
+get_unitless(const sstring & name, const strstr_m & m) noexcept
 {
     unsigned int mv;
     const strstr_m::const_iterator it = m.find(name);
 
-    if (1 == sscanf(it->second.c_str(), "%u", &mv))
+    if ((it != m.end()) && (1 == sscanf(it->second.c_str(), "%u", &mv)))
         return mv;
     return 0;
 }
 
 static void
-build_raw_pdo(const fs::path & pt, pdo_elem & a_pdo)
+build_raw_pdo(const fs::path & pt, pdo_elem & a_pdo) noexcept
 {
     bool src_caps { a_pdo.is_source_caps_ };
     unsigned int mv, ma, mw;
@@ -803,7 +806,7 @@ build_raw_pdo(const fs::path & pt, pdo_elem & a_pdo)
 }
 
 static sstring
-build_summary_s(const pdo_elem & a_pdo)
+build_summary_s(const pdo_elem & a_pdo) noexcept
 {
     bool src_caps { a_pdo.is_source_caps_ };
     unsigned int mv, mv_min, ma, mw;
@@ -880,7 +883,7 @@ build_summary_s(const pdo_elem & a_pdo)
 
 static std::error_code
 populate_pdos(const fs::path & cap_pt, bool is_source_caps,
-              upd_dir_elem & val, struct opts_t * op)
+              upd_dir_elem & val, const struct opts_t * op) noexcept
 {
     std::error_code ecc { };
     std::vector<pdo_elem> pdo_el_v;
@@ -937,7 +940,7 @@ populate_pdos(const fs::path & cap_pt, bool is_source_caps,
 }
 
 static std::error_code
-populate_src_snk_pdos(upd_dir_elem & val, struct opts_t * op)
+populate_src_snk_pdos(upd_dir_elem & val, const struct opts_t * op) noexcept
 {
     std::error_code ec { }, ec2 { };
     const fs::path & pd_pt { val.path() };
@@ -959,7 +962,7 @@ populate_src_snk_pdos(upd_dir_elem & val, struct opts_t * op)
 
 static void
 process_pw_d_dir_mode(const tc_dir_elem * elemp, bool is_partn, int clen,
-                      char * c, bool data_dir)
+                      char * c, bool data_dir) noexcept
 {
     const bool dd { data_dir && elemp->data_role_known_ };
     const auto & pom { elemp->pow_op_mode_ };
@@ -1024,7 +1027,7 @@ process_pw_d_dir_mode(const tc_dir_elem * elemp, bool is_partn, int clen,
 }
 
 static bool
-pd_is_partner(int pd_inum, const struct opts_t * op)
+pd_is_partner(int pd_inum, const struct opts_t * op) noexcept
 {
     for (const auto& entry : op->tc_de_v) {
         if (pd_inum == entry.pd_inum_)
@@ -1034,7 +1037,7 @@ pd_is_partner(int pd_inum, const struct opts_t * op)
 }
 
 static std::error_code
-list_port(const tc_dir_elem & entry, const struct opts_t * op)
+list_port(const tc_dir_elem & entry, const struct opts_t * op) noexcept
 {
     bool want_alt_md = (op->do_long > 1);
     unsigned int u { };
@@ -1082,7 +1085,7 @@ list_port(const tc_dir_elem & entry, const struct opts_t * op)
 
 static std::error_code
 list_pd(int pd_num, const upd_dir_elem & upd_d_el,
-        struct opts_t * op)
+        const struct opts_t * op) noexcept
 {
     std::error_code ec { };
 
@@ -1127,15 +1130,16 @@ list_pd(int pd_num, const upd_dir_elem & upd_d_el,
     if (ec)
         return ec;
 
+    // Put extra space before pd{} and >>
     if (upd_d_el.sink_pdo_v_.empty())
-        bw::print("> pd{}: has NO sink_caps\n", pd_num);
+        bw::print(">  pd{}: has NO sink capabilities\n", pd_num);
     else {
-        bw::print("> pd{}: sink capabilities:\n", pd_num);
+        bw::print(">  pd{}: sink capabilities:\n", pd_num);
         for (const auto & a_pdo : upd_d_el.sink_pdo_v_) {
             const sstring pdo_nm { filename_as_str(a_pdo.pdo_d_p_) };
 
             if (op->do_caps == 1) {
-                bw::print("  >> {}; {}\n", pdo_nm, build_summary_s(a_pdo));
+                bw::print("   >> {}; {}\n", pdo_nm, build_summary_s(a_pdo));
                 if (op->do_long > 0)
                     bw::print("        raw_pdo: 0x{:08x}\n", a_pdo.raw_pdo_);
                 continue;
@@ -1144,10 +1148,10 @@ list_pd(int pd_num, const upd_dir_elem & upd_d_el,
                     continue;
             }
             if (op->do_long > 0)
-                bw::print("  >> {}, type: {}\n", pdo_nm,
+                bw::print("   >> {}, type: {}\n", pdo_nm,
                           pdo_e_to_str(a_pdo.pdo_el_));
             else
-                bw::print("  >> {}\n", pdo_nm);
+                bw::print("   >> {}\n", pdo_nm);
             if (a_pdo.ascii_pdo_m_.empty()) {
                 strstr_m  map_io;
 
@@ -1171,7 +1175,7 @@ list_pd(int pd_num, const upd_dir_elem & upd_d_el,
 }
 
 static std::error_code
-scan_for_typec_obj(bool & ucsi_psup_possible, struct opts_t * op)
+scan_for_typec_obj(bool & ucsi_psup_possible, struct opts_t * op) noexcept
 {
     std::error_code ec { };
     std::error_code ecc { };
@@ -1256,11 +1260,10 @@ scan_for_typec_obj(bool & ucsi_psup_possible, struct opts_t * op)
     if (ecc)
         pr3ser(0, sc_typec_pt, "failed in iterate of scan directory", ec);
     return ecc;
-
 }
 
 static std::error_code
-scan_for_upd_obj(struct opts_t * op)
+scan_for_upd_obj(struct opts_t * op) noexcept
 {
     bool want_ucc = op->do_data_dir;
     std::error_code ec { };
@@ -1309,7 +1312,7 @@ scan_for_upd_obj(struct opts_t * op)
  * prefixed by '='. Return 0 for good, 1 for syntax error
  * and 2 for exit with no error. */
 static int
-chk_short_opts(const char sopt_ch, struct opts_t * op)
+chk_short_opts(const char sopt_ch, struct opts_t * op) noexcept
 {
     /* only need to process short, non-argument options */
     switch (sopt_ch) {
@@ -1576,7 +1579,7 @@ main(int argc, char * argv[])
                             ddir = false;
                     }
                     process_pw_d_dir_mode(prev_elemp, true, clen, c, ddir);
-                    b_ind += sg_scn3pr(b, blen, b_ind, "%s partner: ", c);
+                    b_ind += sg_scn3pr(b, blen, b_ind, "%s partner ", c);
                     if (j > 0) {        // PDO of 0x0000 is place holder
 // zzzzzzzzzzzzzzzzzzzzzz
                         b_ind += sg_scn3pr(b, blen, b_ind, "[pd%d] ", j);

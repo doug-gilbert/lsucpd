@@ -1,4 +1,4 @@
-.TH LSUCPD "8" "August 2023" "lsucpd\-0.90" LSUCPD
+.TH LSUCPD "8" "September 2023" "lsucpd\-0.90" LSUCPD
 .SH NAME
 lsucpd \- list USB-C Power Delivery objects
 .SH SYNOPSIS
@@ -49,7 +49,7 @@ to the right of line for the corresponding port.
 .PP
 A simple example:
     $ lsucpd
-     port0 [pd0]  <<====  partner: [pd8]
+     port0 [pd0]  <<====  partner [pd8]
      port1 [pd1]  > {5V, 0.9A}
 .PP
 This shows that the Linux machine (e.g. a laptop) has two USB Type C
@@ -85,13 +85,13 @@ be made of up to 7 PDOs (power data objects).
 If this option is given once then every sink and source PDO is summarized
 in a single line like this:
     $ lsucpd -c
-     port0 [pd0]  <<====  partner: [pd30]
+     port0 [pd0]  <<====  partner [pd30]
 
     > pd0: has NO source capabilities
-    > pd0: sink capabilities:
-      >> 1:fixed_supply; fixed: 5.00 Volts, 3.00 Amps (op)
-      >> 2:variable_supply; variable: 5.00 to 20.00 Volts, 4.75 Amps (op)
-      >> 3:battery; battery: 5.00 to 20.00 Volts, 95.00 Watts (op)
+    >  pd0: sink capabilities:
+       >> 1:fixed_supply; fixed: 5.00 Volts, 3.00 Amps (op)
+       >> 2:variable_supply; variable: 5.00 to 20.00 Volts, 4.75 Amps (op)
+       >> 3:battery; battery: 5.00 to 20.00 Volts, 95.00 Watts (op)
     > pd30: source capabilities:
       >> 1:fixed_supply; fixed: 5.00 Volts, 3.00 Amps (max)
       >> 2:fixed_supply; fixed: 9.00 Volts, 3.00 Amps (max)
@@ -99,7 +99,7 @@ in a single line like this:
       >> 4:fixed_supply; fixed: 15.00 Volts, 3.00 Amps (max)
       >> 5:fixed_supply; fixed: 20.00 Volts, 5.00 Amps (max)
       >> 6:programmable_supply; pps: 3.30 to 20.00 Volts, 5.00 Amps (max)
-    > pd30: has NO sink_caps
+    >  pd30: has NO sink capabilities
 .br
 The one line PDO summaries are on lines that start with ">>". The part prior
 to the semi\-colon is a directory name in sysfs where the data was found.
@@ -109,8 +109,8 @@ that starts at 1.
 If this option is given twice, those summaries are expanded as shown here:
     $ lsucpd -cc
     > pd0: has NO source capabilities
-    > pd0: sink capabilities:
-      >> 1:fixed_supply
+    >  pd0: sink capabilities:
+       >> 1:fixed_supply
           dual_role_data='0'
           dual_role_power='0'
           fast_role_swap_current='0'
@@ -120,11 +120,11 @@ If this option is given twice, those summaries are expanded as shown here:
           unconstrained_power='0'
           usb_communication_capable='0'
           voltage='5000mV'
-      >> 2:variable_supply
+       >> 2:variable_supply
           maximum_voltage='20000mV'
           minimum_voltage='5000mV'
           operational_current='4750mA'
-      >> 3:battery
+       >> 3:battery
           maximum_voltage='20000mV'
           minimum_voltage='5000mV'
           operational_power='95000mW'
@@ -158,8 +158,8 @@ device data roles can be swapped, if both ends agree.
 When this option is given, a '|>' or '<|' annotation _may_ replace the
 trailing two "==" on the power direction indication. For example:
     $ lsucpd \-d
-    port0 [pd0]  <<====  partner: [pd24]
-    port1 [pd1]  <<==|>  partner: [pd25]
+    port0 [pd0]  <<====  partner [pd24]
+    port1 [pd1]  <<==|>  partner [pd25]
 .br
 In the above example port0's partner is a USB-C PD power adapter while
 port1's partner is a USB-C (thunderbolt 3) hub which has its own large
@@ -251,7 +251,7 @@ or the '>'. In this case nothing is connected.
 .PP
 Now with a USB-C memory stick connected to port0:
     $ lsucpd
-    port0 [pd0]  > {5V, 1.5A}   partner:
+    port0 [pd0]  > {5V, 1.5A}   partner
     port1 [pd1]  <
 .br
 port0 now has an unidentified 'partner' and power is being sourced by
@@ -260,8 +260,8 @@ is connected to port 1.
 .PP
 A Dell 130 Watt USB-C power adapter is now connected to port1:
     $ lsucpd
-    port0 [pd0]  > {5V, 1.5A}   partner:
-    port1 [pd1]  <<====  partner: [pd11]
+    port0 [pd0]  > {5V, 1.5A}   partner
+    port1 [pd1]  <<====  partner [pd11]
 .br
 The '<<====' indicates a PD contract is active and the usb_power_delivery
 identifier associated with the Dell power adapter is pd11. If the RDO
@@ -313,15 +313,15 @@ had been given twice:
           maximum_voltage='20000mV'
           minimum_voltage='3300mV'
           pps_power_limited='0'
-    > pd38: has NO sink_caps
+    >  pd38: has NO sink capabilities
 .br
 This is the same data as the previous data, just spread out with
 the extra fields in the first PDO shown.
 .PP
 Here is an example using the \fI\-\-data\fR option:
     $ lsucpd \-\-data
-    port0 [pd0]  |>==>>  partner: [pd26]
-    port1 [pd1]  <<==|>  partner: [pd27]
+    port0 [pd0]  |>==>>  partner [pd26]
+    port1 [pd1]  <<==|>  partner [pd27]
 .br
 It shows that power (probably 5 Volts at a maximum of 3 Amps) is flowing
 from the laptop's port0 to its partner which use a USB-C DisplayPort

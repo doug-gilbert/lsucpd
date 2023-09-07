@@ -24,7 +24,7 @@
 #include <iostream>
 #include <string_view>
 #include <cstdio>
-#include <version>	// needed to define __cpp_lib_format in C++20
+#include <version>      // needed to define __cpp_lib_format in C++20
 
 // namespace for print() is std or bw
 // make this std if you dare

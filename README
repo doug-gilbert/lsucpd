@@ -13,13 +13,24 @@ adapter) and a consumer of power (e.g. a laptop). Taking those examples,
 both the power adapter and the laptop will have female USB-C connectors (also
 known as receptacles). A USB-C cable will complete the circuit with a male
 USB-C plug on either end.
+
 The lsucpd utility will list local USB-C ports (e.g. each female USB-C
-connector on a laptop) with one line output for each port. Note that not
-all USB-C ports support PD. For those ports that do support PD that are
-also connected to another USB-C PD device, a "port<n>-partner" is shown
-to the right of each line output by lsucpd. The direction that power is
-flowing is indicated by "====>>" or "<<====" between each port<n> and
-port<n>-partner.
+connector on a laptop) with one line output for each local port. Those local
+ports are named "port<n>" where <n> is an integer starting at 0. Although
+Linux does not guarantee it, the local port numbers are observed to be stable
+from one boot to the next. For those local ports connected via a cable to a
+remote device there will most likely be a "port<n>-partner" which is
+shortened to "partner" as the "port<n>" part would otherwise be repeated.
+Not all USB-C ports support the PD protocol, but for those that do, a
+"pd<n>" is shown in square brackets immediately to the right of the port
+it is associated with. For example:
+    $ lsucpd 
+    port0 [pd0]  <<====  partner [pd4] 
+    port1 [pd1]  <<====  partner [pd5]
+The direction that power is flowing is indicated by "====>>" or "<<===="
+between each port<n> and its partner. probably the most useful option
+is --caps which will additionally list the source and sink capabilities of
+each "pd<n>" instance.
 
 Project Status
 --------------
@@ -53,6 +64,10 @@ Not known is which versions of Intel and AMD CPUs will work apart from the
 one from the above laptop: Intel i5-1240P. Intel calls that "12th generation"
 which was superseded this year by the 13th generation. So this utility most
 likely will only work with recent laptops.
+Unfortunately another company's 12th generation laptop (ASUS VivoBook
+K3502ZA) loads ucsi modules, creates the typec and usb_power_delivery class
+directories in sysfs, but leaves them empty. The kernel log shows a
+ENOTSUPPORTED error with BIOS version 307.
 
 Bugs, suggestions, or reports of success on other platforms can be sent to
 this email address or to "Issues" at:
@@ -222,5 +237,5 @@ Finally it is best to keep expectations low, especially if the
  
 
 Douglas Gilbert  <dgilbert@interlog.com>
-28th August 2023
-lsucpd version/release 0.90 [svn revision: 11]
+6th September 2023
+lsucpd version/release 0.90 [svn revision: 12]

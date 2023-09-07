@@ -3,9 +3,7 @@ bin_PROGRAMS = lsucpd
 ## .SUFFIXES: .cpp
 
 # C++/clang testing
-## CC = gcc
 ## CC = g++
-## CC = clang
 ## CC = clang++
 ## CXX = g++
 ## CXX = clang++
