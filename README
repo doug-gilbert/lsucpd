@@ -39,6 +39,8 @@ Can do:
       port1-partner) and "usb_power_delivery" objects (e.g. pd1 and pd7)
     - show the source and sink capabilities of both ends of existing
       PD connections
+    - display partner's alternate modes, if any (with -ll option)
+    - decode numeric PDOs and RDOs
 Cannot do (yet):
     - show the PD contract that is active. In USB PD jargon this requires
       the active RDO to be visible via sysfs
@@ -237,5 +239,5 @@ Finally it is best to keep expectations low, especially if the
  
 
 Douglas Gilbert  <dgilbert@interlog.com>
-6th September 2023
-lsucpd version/release 0.90 [svn revision: 12]
+14th September 2023
+lsucpd version/release 0.90 [svn revision: 13]

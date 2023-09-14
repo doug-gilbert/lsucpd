@@ -65,6 +65,41 @@ int sg_scnpr(char * cp, int cp_max_len, const char * fmt, ...) __printf(3, 4);
 int sg_scn3pr(char * fcp, int fcp_len, int off,
               const char * fmt, ...) __printf(4, 5);
 
+/* If the number in 'buf' can not be decoded or the multiplier is unknown
+ * then -1 is returned. Accepts a hex prefix (0x or 0X) or a decimal
+ * multiplier suffix (as per GNU's dd (since 2002: SI and IEC 60027-2)).
+ * Main (SI) multipliers supported: K, M, G. Ignore leading spaces and
+ * tabs; accept comma, hyphen, space, tab and hash as terminator.
+ * Handles zero and positive values up to 2**31-1 .
+ * Experimental: left argument (must in with hexadecimal digit) added
+ * to, or multiplied, by right argument. No embedded spaces.
+ * Examples: '3+1k' (evaluates to 1027) and '0x34+1m'. */
+int sg_get_num(const char * buf);
+
+/* If the number in 'buf' can not be decoded then -1 is returned. Accepts a
+ * hex prefix (0x or 0X) or a 'h' (or 'H') suffix; otherwise decimal is
+ * assumed. Does not accept multipliers. Accept a comma (","), hyphen ("-"),
+ * a whitespace or newline as terminator. */
+int sg_get_num_nomult(const char * buf);
+
+/* If the number in 'buf' can not be decoded or the multiplier is unknown
+ * then -1LL is returned. Accepts a hex prefix (0x or 0X), hex suffix
+ * (h or H), or a decimal multiplier suffix (as per GNU's dd (since 2002:
+ * SI and IEC 60027-2)).  Main (SI) multipliers supported: K, M, G, T, P
+ * and E. Ignore leading spaces and tabs; accept comma, hyphen, space, tab
+ * and hash as terminator. Handles zero and positive values up to 2**63-1 .
+ * Experimental: left argument (must in with hexadecimal digit) added
+ * to, or multiplied by right argument. No embedded spaces.
+ * Examples: '3+1k' (evaluates to 1027) and '0x34+1m'. */
+int64_t sg_get_llnum(const char * buf);
+
+/* If the number in 'buf' can not be decoded then -1 is returned. Accepts a
+ * hex prefix (0x or 0X) or a 'h' (or 'H') suffix; otherwise decimal is
+ * assumed. Does not accept multipliers. Accept a comma (","), hyphen ("-"),
+ * a whitespace or newline as terminator. Only decimal numbers can represent
+ * negative numbers and '-1' must be treated separately. */
+int64_t sg_get_llnum_nomult(const char * buf);
+
 #ifdef __cplusplus
 }
 #endif

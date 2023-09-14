@@ -3,8 +3,9 @@
 lsucpd \- list USB-C Power Delivery objects
 .SH SYNOPSIS
 .B lsucpd
-[\fI\-\-caps\fR] [\fI\-\-data\fR] [\fI\-\-help\fR]
-[\fI\-\-json[=JO]\fR] [\fI\-\-js\-file=JFN\fR] [\fI\-\-long\fR]
+[\fI\-\-caps\fR] [\fI\-\-data\fR] [\fI\-\-help\fR] [\fI\-\-json[=JO]\fR]
+[\fI\-\-js\-file=JFN\fR] [\fI\-\-long\fR] [\fI\-\-pdo-snk=SI_PDO[,IND]\fR]
+[\fI\-\-pdo-src=SO_PDO[,IND]\fR] [\fI\-\-rdo=RDO,REF\fR]
 [\fI\-\-sysfsroot=PATH\fR] [\fI\-\-verbose\fR] [\fI\-\-version\fR]
 [\fIFILTER ... \fR]
 .SH DESCRIPTION
@@ -67,6 +68,11 @@ The second line in the example output above shows that nothing is connected
 to port1 but if it was, port1 would report that it can source 5 Volts at
 0.9 Amps. More likely that port can source 1.5 Amps and the value shown
 above (real output) is misreported.
+.PP
+Three options: \fI\-\-pdo-snk=SI_PDO[,IND]\fR, \fI\-\-pdo-src=SO_PDO[,IND]\fR
+and \fI\-\-rdo=RDO,REF\fR simply decode the numeric arguments given then
+exit. So these options don't depend on sysfs or any connected USB\-C
+devices.
 .PP
 This utility can be categorized as "beta" software, amongst other reasons
 being that USB PD reporting from the Linux kernel (currently lk 6.4) has
@@ -220,6 +226,36 @@ One of those should be the description, for example:
 Extra information will be supplied when the \fI\-\-verbose\fR option
 is given. However its output it is sent to stderr and aimed more at
 helping the author debug the code.
+.TP
+\fB\-p\fR, \fB\-\-pdo\-snk\fR=\fISI_PDO[,IND]\fR
+\fISI_PDO\fR is a 32 bit integer representing a Power Data Object (PDO).
+By default \fISI_PDO\fR is decimal, for compatibility with other Unix
+CLI tools, but for PDOs hex would be a better fit. By adding a leading '0x'
+or a trailing 'h' to \fISI_PDO\fR it will be parsed as hex. \fIIND\fR,
+if given, is what is termed as the 'Object Position', which is a number
+between 1 and 13. [So 0 is not valid, but is interpreted as not 1 which
+is all the matters in this case.] The PDO at Object Position 1 carries
+more information in its upper bits.
+.br
+Decoding PDOs changes slightly depending on whether they are sink or source
+PDOs. When this option is used then \fISI_PDO\fR is decoded as a sink PDO.
+.br
+After decoding \fISI_PDO\fR, or reporting an error, this utility will exit.
+So no examination of sysfs for USB\-C devices takes place.
+.TP
+\fB\-P\fR, \fB\-\-pdo\-src\fR=\fISO_PDO[,IND]\fR
+\fISO_PDO\fR is a 32 bit integer representing a Power Data Object (PDO). The
+action is similar to the \fI\-\-pdo-snk=SI_PDO[,IND]\fR with 'sink'
+replaced by 'source'.
+.TP
+\fB\-r\fR, \fB\-\-rdo\fR=\fIRDO,REF\fR
+\fIRDO\fR is a 32 bit integer representing a Request Data Object (RDO). To
+decode a RDO one needs to know what type of source PDO its "Object Position'
+field refers to. Those types are either Fixed, Battery, Variable, PPS or
+AVS and one of those types must be given in the \fIREF\fR field. The first
+letter of each is sufficient.
+.br
+This option will decode \fIRDO\fR into its component fields.
 .TP
 \fB\-y\fR, \fB\-\-sysfsroot\fR=\fIPATH\fR
 assumes sysfs is mounted at PATH instead of the default '/sys' . If this

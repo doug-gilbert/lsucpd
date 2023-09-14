@@ -16,7 +16,7 @@
 
 // Initially this utility will assume C++20 or later
 
-static const char * const version_str = "0.90 20230906 [svn: r12]";
+static const char * const version_str = "0.90 20230914 [svn: r13]";
 
 static const char * const my_name { "lsucpd: " };
 
@@ -76,7 +76,6 @@ namespace fs = std::filesystem;
 using sstring=std::string;
 using sregex=std::regex;
 using strstr_m=std::map<sstring, sstring>;
-// static auto & srgx_constants { std::regex_constants };
 
 static const fs::directory_iterator end_itr { };
 static const sstring empty_str { };
@@ -221,6 +220,13 @@ static const struct option long_options[] = {
     {"js-file", required_argument, 0, 'J'},
     {"js_file", required_argument, 0, 'J'},
     {"long", no_argument, 0, 'l'},
+    {"pdo-snk", required_argument, 0, 'p'},
+    {"pdo_snk", required_argument, 0, 'p'},
+    {"pdo-sink", required_argument, 0, 'p'},
+    {"pdo-src", required_argument, 0, 'P'},
+    {"pdo_src", required_argument, 0, 'P'},
+    {"pdo-source", required_argument, 0, 'P'},
+    {"rdo", required_argument, 0, 'r'},
     {"sysfsroot", required_argument, 0, 'y'},
     {"verbose", no_argument, 0, 'v'},
     {"version", no_argument, 0, 'V'},
@@ -256,14 +262,17 @@ static inline sstring filename_as_str(const fs::path & pt) noexcept
 
 static const char * const usage_message1 =
     "Usage: lsucpd [--caps] [--data] [--help] [--json[=JO]] [--js-file=JFN]\n"
-    "              [--long] [--sysfsroot=SPATH] [--verbose] [--version]\n"
+    "              [--long] [--pdo-snk=SI_PDO[,IND]] "
+    "[--pdo-src=SO_PDO[,IND]]\n"
+    "              [--rdo=RDO,REF] [--sysfsroot=SPATH] [--verbose] "
+    "[--version]\n"
     "              [FILTER ...]\n"
     "  where:\n"
     "    --caps|-c         list pd sink and source capabilities. Once: one "
     "line\n"
     "                      per capability; twice: name: 'value' pairs; "
     "three\n"
-    "                      times: PDO index 1 only (first PDO)\n"
+    "                      times: PDO object position 1 only (first PDO)\n"
     "    --data|-d         show USB data direction {device} <| {host}\n"
     "    --help|-h         this usage information\n"
     "    --json[=JO]|-j[=JO]     output in JSON instead of plain text\n"
@@ -271,7 +280,20 @@ static const char * const usage_message1 =
     "    --js-file=JFN|-J JFN    JFN is a filename to which JSON output is\n"
     "                            written (def: stdout); truncates then "
     "writes\n"
-    "    --long|-l         supply more information\n"
+    "    --long|-l         supply port attributes or PDO raw values; if "
+    "given\n"
+    "                      twice display partner's alternate mode "
+    "information\n"
+    "    --pdo-snk=SI_PDO[,IND]|-p SI_PDO[,IND]\n"
+    "                      decode SI_PDO as sink PDO into component fields.\n"
+    "                      if IND of 1 is given, fixed supplies have more\n"
+    "                      fields (def: not 1). After decoding it exits.\n"
+    "    --pdo-src=SO_PDO[,IND]|-p SO_PDO[,IND]\n"
+    "                      similar to --pdo-snk= but for source PDO\n"
+    "    --rdo=RDO,REF     RDO is a 32 bit value (decimal by default). REF "
+    "is one\n"
+    "                      of F|B|V|P|A for Fixed, Battery, Variable, PPS "
+    "or AVS\n"
     "    --sysfsroot=SPATH|-y SPATH    set sysfs mount point to SPATH (def: "
     "/sys)\n"
     "    --verbose|-v      increase verbosity, more debug information\n"
@@ -283,7 +305,8 @@ static const char * const usage_message2 =
     "form:\n'p<num>[p]' or 'pd<num>'. The first is for matching (typec) "
     "ports and the\nsecond for matching pd objects. The first form may "
     "have a trailing 'p' for\nmatching its partner port. The FILTER "
-    "arguments may be 'grep basic'\nregexes.\n";
+    "arguments may be 'grep basic'\nregexes. Multiple FILTER arguments may "
+    "be given.\n";
 
 static void
 usage() noexcept
@@ -296,11 +319,11 @@ static sstring
 pdo_e_to_str(enum pdo_e p_e) noexcept
 {
     switch (p_e) {
-    case pdo_e::pdo_fixed: return "fixed supply";
-    case pdo_e::pdo_variable: return "variable supply";
-    case pdo_e::pdo_battery: return "battery supply";
-    case pdo_e::apdo_pps: return "programmable supply";
-    case pdo_e::apdo_avs: return "adjustable supply";
+    case pdo_e::pdo_fixed: return "Fixed supply";
+    case pdo_e::pdo_variable: return "Variable supply";
+    case pdo_e::pdo_battery: return "Battery supply";
+    case pdo_e::apdo_pps: return "Programmable power supply";
+    case pdo_e::apdo_avs: return "Adjustable voltage supply";
     default: return "no supply";
     }
 }
@@ -448,6 +471,13 @@ pr4ser(int vb_ge, const std::string & e1msg, const std::string & e2msg,
 
 #endif
 
+// Don't want exceptions flying around and std::filesystem helps in that
+// regard. However std::regex only uses exceptions so wrap call of 2
+// argument ctor which can throw. Expects an instance of
+// std::basic_regex<char> created with a no argument ctor (which is
+// declared noexcept in the standard). Succeeds when ec is false and
+// then 'pat' will contain a new instance of std::basic_regex<char>
+// created with ctor(filt, sot).
 static void
 regex_ctor_noexc(std::basic_regex<char> & pat, const sstring & filt,
                  std::regex_constants::syntax_option_type sot,
@@ -712,11 +742,11 @@ build_raw_pdo(const fs::path & pt, pdo_elem & a_pdo) noexcept
 
     switch (a_pdo.pdo_el_) {
     case pdo_e::pdo_fixed:      // B31...B30: 00b
-        mv = get_millivolts("voltage", ss_map);
-        r_pdo = (mv / 50) & 0x3ff;
         ma = get_milliamps(src_caps ? "maximum_current" :
                                       "operational_current", ss_map);
-        r_pdo |= ((ma / 10) & 0x3ff) << 10;
+        r_pdo = (ma / 10) & 0x3ff;
+        mv = get_millivolts("voltage", ss_map);
+        r_pdo |= ((mv / 50) & 0x3ff) << 10;
         if (a_pdo.pdo_ind_ == 1) {      // only pdo 1 set bits 23 to 29
             if (src_caps) {
                 v = get_unitless("unchunked_extended_messages_supported",
@@ -1047,10 +1077,10 @@ list_port(const tc_dir_elem & entry, const struct opts_t * op) noexcept
     const bool is_ptner = entry.is_partner();
 
     if (entry.pd_inum_ >= 0)
-        bw::print("{}{}  [pd{}] :\n", (is_ptner ? "  " : "> "), basename,
+        bw::print("{}{}  [pd{}]:\n", (is_ptner ? "   " : "> "), basename,
                   entry.pd_inum_);
     else
-        bw::print("{}{} :\n", (is_ptner ? "  " : "> "), basename);
+        bw::print("{}{}:\n", (is_ptner ? "   " : "> "), basename);
     if (entry.is_directory(ec) && entry.is_symlink(ec)) {
         for (auto&& [n, v] : entry.tc_sdir_reg_m) {
             bw::print("      {}='{}'\n", n, v);
@@ -1125,6 +1155,8 @@ list_pd(int pd_num, const upd_dir_elem & upd_d_el,
                 for (auto&& [n, v] : a_pdo.ascii_pdo_m_)
                     bw::print("      {}='{}'\n", n, v);
             }
+            if (op->do_long > 0)
+                bw::print("        raw_pdo: 0x{:08x}\n", a_pdo.raw_pdo_);
         }
     }
     if (ec)
@@ -1178,7 +1210,7 @@ static std::error_code
 scan_for_typec_obj(bool & ucsi_psup_possible, struct opts_t * op) noexcept
 {
     std::error_code ec { };
-    std::error_code ecc { };
+    std::error_code ecc { };    // only use for directory_iterator failure
 
     // choose traditional for loop over range-based for, for flexibility
     for (fs::directory_iterator itr(sc_typec_pt, dir_opt, ecc);
@@ -1307,6 +1339,324 @@ scan_for_upd_obj(struct opts_t * op) noexcept
     return ecc;
 }
 
+struct do_fld_desc_t {   // 4 bytes long describing a PDO and RDO field
+    uint8_t low_pdo_bit;        // lowest bit address in <n> bit field
+    uint8_t num_bits_typ;       // lower 4 bits: num_bits, upper 4 bits: type
+                                // 0 --> filler as is rest of row
+    uint8_t mult;               // multiplier to convert to centivolts,
+                                // centiamps, centiwatts, 0 for unit-less.
+                                // 0xff is for special handling
+    uint8_t nam_str_off;        // in reference to pdo_str[]
+};
+
+#define P_IT_FL_START 0x10
+#define P_IT_FL_SINK  0x20      // sink_pdo_capabaility or giveback_flag=0
+#define P_IT_FL_SRC   0x40      // source_pdo_capabaility or giveback_flag=1
+#define P_IT_FL_CONT  0x80
+
+// Define one PDO string with embedded <null> chars. starting position
+// indexes shown in comments to the right.
+static const char * pdo_str[] = {
+    "dual_role_power",                  // 0
+    "usb_suspend_supported",
+    "unconstrained_power",
+    "usb_communication_capable",
+    "unchunked_message_supported",      // 4
+    "epr_mode_supported",
+    "higher_capability",
+    "fast_role_swap",
+    "peak_current",                     // 8
+    "voltage",
+    "maximum_current",
+    "operational_current",
+    "maximum_voltage",                  // 12
+    "minimum_voltage",
+    "pps_power_limited",
+    "dual_role_data",
+    "maximum_power",                    // 16
+    "operational_power",
+    "pd_power",
+
+    /* Following specifically for RDOs */
+    "object_position",
+    "giveback_flag",                    // 20
+    "capability_mismatch",
+    "no_usb_suspend",
+    "operating_current",
+    "maximum_operating_current",        // 24
+    "minimum_operating_current",
+    "operating_power",
+    "maximum_operating_power",
+    "minimum_operating_power",          // 28
+    "output_voltage",
+};
+
+/* PDO and RDO field definitions based on an array of do_fld_desc_t objects */
+static const struct do_fld_desc_t pdo_part_a[67] = {
+
+// Start PDO entries:
+/* index=0 */
+    // Following block for Fixed PDOs at object position 1
+    {29, 1 | P_IT_FL_START, 0, 0 /* DRP */},
+    {28, 1 | P_IT_FL_SINK, 0, 6 /* HC */},
+    {28, 1 | P_IT_FL_SRC, 0, 1 /* USS (Suspend supported) */},
+    {27, 1 /* source+sink */, 0, 2 /* UCP (Unconstrained power) */},
+    {26, 1, 0, 3 /* UCC (USB comms capable) */},
+    {25, 1, 0, 15 /* DRD (Dual-Role data) */},
+    {24, 1 | P_IT_FL_SRC, 0, 4 /* UCH (Unchunked ext msg support) */},
+    {23, 1 | P_IT_FL_SRC, 0, 5 /* EPR (EPR mode capable) */},
+    {23, 2 | P_IT_FL_SINK | P_IT_FL_CONT, 0, 7 /* FRS (Fast Role swap) */},
+    // vvvvvvvvvvvvvvvvvv continue on due to P_IT_FL_CONT flag vvvvvvvvvvvvv
+    // Following block for all Fixed PDOs
+    {20, 2 | P_IT_FL_START | P_IT_FL_SRC, 0, 8 /* Peak current, unit-less */},
+    {10, 10, 5, 9 /* V (fixed Voltage in 50 mV units) */},
+    {0, 10 | P_IT_FL_SRC, 1, 10 /* Imax (in 10 mA units) */},
+    {0, 10 | P_IT_FL_SINK, 1, 11 /* Ioperational (in 10 mA units) */},
+
+/* index=13 */
+    // Following block for Battery PDOs [B31..B30=01b]
+    {20, 10 | P_IT_FL_START, 5, 12 /* Vmax (in 50 mV units) */},
+    {10, 10, 5, 13 /* Vmin (in 50 mV units) */},
+    {0, 10 | P_IT_FL_SRC, 25, 16 /* Pmax (in 250 mW units) */},
+    {0, 10 | P_IT_FL_SINK, 25, 17 /* Poperational (in 250 mW units) */},
+
+/* index=17 */
+    // Following block for Variable PDOs [B31..B30=10b]
+    {20, 10 | P_IT_FL_START, 5, 12 /* Vmax (in 50 mV units) */},
+    {10, 10, 5, 13 /* Vmin (in 50 mV units) */},
+    {0, 10 | P_IT_FL_SRC, 1, 10 /* Imax (in 10 mA units) */},
+    {0, 10 | P_IT_FL_SINK, 1, 11 /* Ioperational (in 10 mA units) */},
+
+/* index=21 */
+    // Following block for PPS PDOs [B31..B28=1100b]
+    {27, 1 | P_IT_FL_START | P_IT_FL_SRC, 0, 14 /* PPL (power limited) */},
+    {17, 8, 10, 12 /* Vmax (in 100 mV units) */},
+    {8, 8, 10, 13  /* Vmin (in 100 mV units) */},
+    {0, 7 | P_IT_FL_SRC, 5, 10 /* Imax (in 50 mA units) */},
+    {0, 7 | P_IT_FL_SINK, 5, 11 /* Ioperational (in 50 mA units) */},
+
+/* index=26 */
+    // Following block for AVS PDOs [B31..B28=1101b]
+    {26, 2 | P_IT_FL_START | P_IT_FL_SRC, 0, 8 /* Peak current, unit-less */},
+    {17, 9, 10, 12 /* Vmax (in 100 mV units) */},
+    {8, 8, 10, 13  /* Vmin (in 100 mV units) */},
+    {0, 8, 100, 18 /* PDP  (in 1 W units) */},
+
+// Start RDO entries:
+/* index=30  object position refers to partner's source PDO pack */
+    // Following block for Fixed and Variable RDOs
+    {28, 4 | P_IT_FL_START, 0, 19 /* Object position (1...13) valid */},
+    {27, 1, 0, 20  /* GiveBack flag */},
+    {26, 1, 0, 21  /* Capability mismatch */},
+    {25, 1, 0, 3   /* USB comms capable */},
+    {24, 1, 0, 22  /* No USB suspend */},
+    {23, 1, 0, 4   /* Unchunked ext msg support */},
+    {22, 1, 0, 5   /* EPR (EPR mode capable) */},
+    {10, 10, 1, 23 /* Iop (in 10 mA units) */},
+    {0, 10 | P_IT_FL_SINK, 1, 24 /* Imax (in 10 mA units) */},
+    {0, 10 | P_IT_FL_SRC, 1, 25  /* Imin (in 10 mA units) */},
+
+/* index=40 */
+    // Following block for Battery RDOs
+    {28, 4 | P_IT_FL_START, 0, 19 /* Object position (1...13) valid */},
+    {27, 1, 0, 20  /* GiveBack flag */},
+    {26, 1, 0, 21  /* Capability mismatch */},
+    {25, 1, 0, 3   /* USB comms capable */},
+    {24, 1, 0, 22  /* No USB suspend */},
+    {23, 1, 0, 4   /* Unchunked ext msg support */},
+    {22, 1, 0, 5   /* EPR (EPR mode capable) */},
+    {10, 10, 25, 26 /* Pop (in 250 mW units) */},
+    {0, 10 | P_IT_FL_SINK, 25, 27 /* Pmax (in 250 mW units) */},
+    {0, 10 | P_IT_FL_SRC, 25, 28  /* Pmin (in 250 mW units) */},
+
+/* index=50 */
+    // Following block for PPS RDOs
+    {28, 4 | P_IT_FL_START, 0, 19 /* Object position (1...13) valid */},
+    {26, 1, 0, 21  /* Capability mismatch */},
+    {25, 1, 0, 3   /* USB comms capable */},
+    {24, 1, 0, 22  /* No USB suspend */},
+    {23, 1, 0, 4   /* Unchunked ext msg support */},
+    {22, 1, 0, 5   /* EPR (EPR mode capable) */},
+    {9, 11, 2, 29  /* Output voltage (in 20 mV units) */},
+    /* the following field sets the current limit for PPS */
+    {0, 7, 5, 23   /* Operating current (in 50 mA units) */},
+
+/* index=58 */
+    // Following block for AVS RDOs, no current limiting supported
+    {28, 4 | P_IT_FL_START, 0, 19 /* Object position (1...13) valid */},
+    {26, 1, 0, 21  /* Capability mismatch */},
+    {25, 1, 0, 3   /* USB comms capable */},
+    {24, 1, 0, 22  /* No USB suspend */},
+    {23, 1, 0, 4   /* Unchunked ext msg support */},
+    {22, 1, 0, 5   /* EPR (EPR mode capable) */},   // can this be != 1 ??
+    {9, 11, 0xff, 29  /* Output voltage (in 25 mV units) [special] */},
+    {0, 7, 5, 23   /* Operating current (in 50 mA units) */},
+
+/* index=66 */
+    {0, 0, 0, 0},       // sentinel
+};
+
+// want mapping from PDO's [{B31..B30} * 2 + (obj_pos==1)] to index in
+// pdo_part_a[]. Special case for PPS and AVS which are last 2 entries.
+static const uint8_t pdo_part_map[] = {9, 0, 13, 13, 17, 17, 21,
+                                       26 /* AVS */};
+
+// want mapping from RDO's object type; {f+v}:0, {b}:1, {pps}:2, {avs}:3
+// to index in pdo_part_a[].
+static const uint8_t rdo_part_map[] = {30, 40, 50, 58};
+
+static void
+pdo2str(uint32_t a_pdo, bool ind1, bool is_src, sstring & out)
+{
+    bool fl_cont { false };
+    uint8_t k, num_b_typ, nb;
+    uint8_t pp_map_ind = ((a_pdo >> 30) << 1);
+    uint32_t l_pdo, mask;
+    if (ind1)
+        pp_map_ind |= 1;
+    const struct do_fld_desc_t * do_fld_p =
+                         pdo_part_a + pdo_part_map[pp_map_ind];
+
+    k = static_cast<uint8_t>(a_pdo >> 30);
+    switch (k) {
+    case 0:
+        out = "Fixed";
+        break;
+    case 1:
+        out = "Battery";
+        break;
+    case 2:
+        out = "Variable";
+        break;
+    case 3:
+        pp_map_ind = 6;
+        if (0x10000000 & a_pdo) {
+            do_fld_p = pdo_part_a + pdo_part_map[pp_map_ind + 1];
+            out = "Adjustable voltage";
+        } else {
+            do_fld_p = pdo_part_a + pdo_part_map[pp_map_ind];
+            out = "Programmable power";
+        }
+        break;
+    }
+    out += " supply PDO for ";
+    out += is_src ? "source" : "sink";
+    out += ind1 ? ", object index 1:\n" : ":\n";
+
+    for (k = 0; true; ++k, ++do_fld_p) {
+        num_b_typ = do_fld_p->num_bits_typ;
+        if (0 == num_b_typ)
+            break;
+        if (! fl_cont) {
+            if ((k > 0) && (num_b_typ & P_IT_FL_START))
+                break;
+        }
+        fl_cont = !!(P_IT_FL_CONT & num_b_typ);
+        if ((P_IT_FL_SRC & num_b_typ) && (! is_src))
+            continue;
+        if ((P_IT_FL_SINK & num_b_typ) && is_src)
+            continue;
+        if (do_fld_p->low_pdo_bit > 0)
+            l_pdo = a_pdo >> do_fld_p->low_pdo_bit;
+        else
+            l_pdo = a_pdo;
+        nb = num_b_typ & 0xf;
+        mask = (1 << nb) - 1;
+        l_pdo &= mask;
+        out += sstring("  ") + sstring(pdo_str[do_fld_p->nam_str_off]);
+        uint8_t mult = do_fld_p->mult;
+        uint16_t l_pdo16 = (uint16_t)l_pdo;
+        if (mult) {
+            char b[16];
+            static const int blen = sizeof(b);
+
+            l_pdo16 *= mult;
+            snprintf(b, blen, "=%u.%02u\n", l_pdo16 / 100, l_pdo16 % 100);
+            out += sstring(b);
+        } else
+            out += sstring("=") + std::to_string(l_pdo16) + sstring("\n");
+    }
+}
+
+/* RDOs are always sent by the sink to the source */
+static void
+rdo2str(uint32_t a_rdo, pdo_e ref_pdo, sstring & out)
+{
+    bool fl_cont { false };
+    bool check_giveback { false };
+    uint8_t k, num_b_typ, nb;
+    uint16_t ind;
+    uint32_t l_rdo, mask;
+
+    switch (ref_pdo) {
+    case pdo_e::pdo_fixed:
+        ind = rdo_part_map[0];
+        check_giveback = true;
+        break;
+    case pdo_e::pdo_battery:
+        ind = rdo_part_map[1];
+        check_giveback = true;
+        break;
+    case pdo_e::pdo_variable:
+        ind = rdo_part_map[0]; // Fixed and Variable RDOs have same structure
+        check_giveback = true;
+        break;
+    case pdo_e::apdo_pps:
+        ind = rdo_part_map[2];
+        break;
+    case pdo_e::apdo_avs:
+        ind = rdo_part_map[3];
+        break;
+    default:
+        out = "RDO refers to bad PDO type\n";
+        return;
+    }
+    out = sstring("RDO for ") + pdo_e_to_str(ref_pdo) + "\n";
+    const struct do_fld_desc_t * do_fld_p = pdo_part_a + ind;
+
+    for (k = 0; true; ++k, ++do_fld_p) {
+        num_b_typ = do_fld_p->num_bits_typ;
+        if (0 == num_b_typ)
+            break;
+        if (! fl_cont) {
+            if ((k > 0) && (num_b_typ & P_IT_FL_START))
+                break;
+        }
+        fl_cont = !!(P_IT_FL_CONT & num_b_typ);
+        if (check_giveback) {
+            bool report_giveback = !! (0x08000000 & a_rdo);
+            if ((P_IT_FL_SRC & num_b_typ) && (! report_giveback))
+                continue;
+            if ((P_IT_FL_SINK & num_b_typ) && report_giveback)
+                continue;
+        }
+        if (do_fld_p->low_pdo_bit > 0)
+            l_rdo = a_rdo >> do_fld_p->low_pdo_bit;
+        else
+            l_rdo = a_rdo;
+        nb = num_b_typ & 0xf;
+        mask = (1 << nb) - 1;
+        l_rdo &= mask;
+        out += sstring("  ") + sstring(pdo_str[do_fld_p->nam_str_off]);
+        uint8_t mult = do_fld_p->mult;
+        uint16_t l_rdo16 = (uint16_t)l_rdo;
+        if (mult) {
+            char b[16];
+            static const int blen = sizeof(b);
+
+            if (0xff == mult) {
+                // special case for AVS, bottom 2 lsb_s of voltage always 0
+                // mult should be 2.5 but is an integer, improvise ...
+                l_rdo16 = (l_rdo16 >> 1) * 25;
+            } else
+                l_rdo16 *= mult;
+            snprintf(b, blen, "=%u.%02u\n", l_rdo16 / 100, l_rdo16 % 100);
+            out += sstring(b);
+        } else
+            out += sstring("=") + std::to_string(l_rdo16) + sstring("\n");
+    }
+}
+
 /* Handles short options after '-j' including a sequence of short options
  * that include one 'j' (for JSON). Want optional argument to '-j' to be
  * prefixed by '='. Return 0 for good, 1 for syntax error
@@ -1353,6 +1703,9 @@ main(int argc, char * argv[])
     bool filter_for_port { false };
     bool filter_for_pd { false };
     bool ucsi_psup_possible { false };
+    bool is_pdo_snk { false };
+    int res { };
+    size_t sz;
     std::error_code ec { };
     std::error_code ecc { };
     struct opts_t opts { };
@@ -1360,15 +1713,15 @@ main(int argc, char * argv[])
     sgj_state * jsp;
     sgj_opaque_p jop = nullptr;
     tc_dir_elem * elemp;
-    int res { };
-    size_t sz;
+    const char * pdo_opt_p { };
+    const char * rdo_opt_p { };
     char b[128];
     static const int blen = sizeof(b);
 
     while (1) {
         int option_index = 0;
 
-        int c = getopt_long(argc, argv, "^cdhj::J:lvVy:", long_options,
+        int c = getopt_long(argc, argv, "^cdhj::J:lp:P:r:vVy:", long_options,
                             &option_index);
         if (c == -1)
             break;
@@ -1416,6 +1769,17 @@ main(int argc, char * argv[])
         case 'l':
             ++op->do_long;
             break;
+        case 'p':
+            pdo_opt_p = optarg;
+            is_pdo_snk = true;
+            break;
+        case 'P':
+            pdo_opt_p = optarg;
+            is_pdo_snk = false;
+            break;
+        case 'r':
+            rdo_opt_p = optarg;
+            break;
         case 'v':
             op->verbose_given = true;
             ++lsucpd_verbose;
@@ -1434,7 +1798,13 @@ main(int argc, char * argv[])
     }
     while (optind < argc) {
         const char * oip = argv[optind];
+        auto ln = strlen(oip);
 
+        if ((ln < 2) || (ln >= 31)) {
+            print_err(-1, "expect argument of the form: 'p<num>', "
+                      "'p<num>[p]' or 'pd<num>', got: {}\n", oip);
+            return 1;
+        }
         if (tolower(oip[0]) != 'p') {
             print_err(-1, "FILTER arguments must start with a 'p'\n\n");
             usage();
@@ -1443,19 +1813,12 @@ main(int argc, char * argv[])
         if (tolower(oip[1]) == 'd')
             op->filter_pd_v.push_back(oip);
         else {
-            auto ln = strlen(oip);
-            char b[32] { };
-
-            if ((ln < 2) || (ln >= 31)) {
-                print_err(-1, "expect port matching argument of the form "
-                          "'p<num>[p]'\n");
-                return 1;
-            }
-            strncpy(b, oip, ln);
+            memset(b, 0, 32);
+            strncpy(b, oip, (ln < blen ? ln : (blen - 1)));
             if (ln > 4) {       // also accept 'port1' or 'port3p'
                 if (0 == memcmp(b, "port", 4)) {
                     memmove(b + 1, b + 4, 3);
-                    ln -= 3;
+                    ln -= 3;    // transform to 'p1' and 'p3p'
                 } else {
                     print_err(-1, "malformed FILTER argument: {}\n", b);
                     return 1;
@@ -1473,6 +1836,81 @@ main(int argc, char * argv[])
     }
     if (op->version_given) {
         bw::print("{}\n", version_str);
+        return 0;
+    }
+    if (pdo_opt_p) {
+        int64_t n = sg_get_llnum(pdo_opt_p);
+        const char * snk_src_s = is_pdo_snk ? "snk" : "src";
+        sstring ss;
+
+        if (n < 0) {
+            print_err(-1, "bad argument to --pdo-{}, decimal is the "
+                      "default\n", snk_src_s);
+            return 1;
+        } else if (n > 0xffffffff) {
+            print_err(-1, "argument to --pdo-{}= does fit in 32 bits\n",
+                      snk_src_s);
+            return 1;
+        }
+        int k = 0;
+        const char * ccp = strchr(pdo_opt_p, ',');
+        if (ccp) {
+            k = sg_get_num(ccp + 1);
+            if (k < 0) {
+                print_err(-1, "bad numeric index to "
+                          "--pdo-{}=<si_pdo>,IND\n", snk_src_s);
+                return 1;
+            }
+        }
+        pdo2str((uint32_t)n, 1 == k, ! is_pdo_snk, ss);
+        bw::print("{}", ss);
+        if (nullptr == rdo_opt_p)
+            return 0;
+    }
+    if (rdo_opt_p) {
+        int64_t n = sg_get_llnum(rdo_opt_p);
+        sstring ss;
+
+        if (n < 0) {
+            print_err(-1, "bad argument to --rdo=, decimal is the "
+                      "default\n");
+            return 1;
+        } else if (n > 0xffffffff) {
+            print_err(-1, "argument to --rdo=RDO does fit in 32 bits\n");
+            return 1;
+        }
+        const char * ccp = strchr(rdo_opt_p, ',');
+
+        pdo_e ref_pdo { };
+        if (ccp) {
+
+            switch (toupper(*(ccp + 1))) {
+            case 'F':
+                ref_pdo = pdo_e::pdo_fixed;
+                break;
+            case 'B':
+                ref_pdo = pdo_e::pdo_battery;
+                break;
+            case 'V':
+                ref_pdo = pdo_e::pdo_variable;
+                break;
+            case 'P':
+                ref_pdo = pdo_e::apdo_pps;
+                break;
+            case 'A':
+                ref_pdo = pdo_e::apdo_avs;
+                break;
+            default:
+                print_err(-1, "--rdo=<rdo>,REF expects F, B, V, P or A\n");
+                return 1;
+            }
+        } else {
+            print_err(-1, "--rdo= takes two arguments: RDO and REF "
+                      "separated by a comma, no spaces\n");
+            return 1;
+        }
+        rdo2str((uint32_t)n, ref_pdo, ss);
+        bw::print("{}", ss);
         return 0;
     }
     if (op->filter_port_v.size() > 0)
@@ -1552,7 +1990,10 @@ main(int argc, char * argv[])
                  itr.increment(ecc) ) {
                 const fs::path & pt { itr->path() };
                 const sstring & name { pt.filename() };
-// xxxxxxxxxxx  missing code for power_supply object; don't know which one
+// xxxxxxxxxxx  missing code for power_supply object; don't know which one.
+// xxxxxxxxxxx  Would like symlink from pd object to corresponding
+// xxxxxxxxxxx  power_supply. Also having the active RDO (in hex ?) would
+// xxxxxxxxxxx  be extremely useful.
             }
             if (ecc)
                 pr3ser(-1, sc_powsup_pt, "was scanning when failed", ecc);
@@ -1581,7 +2022,6 @@ main(int argc, char * argv[])
                     process_pw_d_dir_mode(prev_elemp, true, clen, c, ddir);
                     b_ind += sg_scn3pr(b, blen, b_ind, "%s partner ", c);
                     if (j > 0) {        // PDO of 0x0000 is place holder
-// zzzzzzzzzzzzzzzzzzzzzz
                         b_ind += sg_scn3pr(b, blen, b_ind, "[pd%d] ", j);
                     }
                     op->summ_out_m.emplace(
@@ -1634,7 +2074,7 @@ main(int argc, char * argv[])
     if (filter_for_port || filter_for_pd) {
         if (filter_for_port) {
             for (const auto& filt : op->filter_port_v) {
-                sregex pat;
+                sregex pat;     // standard say this is noexcept
 
                 regex_ctor_noexc(pat, filt, std::regex_constants::grep |
                                             std::regex_constants::icase, ec);
@@ -1694,7 +2134,18 @@ main(int argc, char * argv[])
             if (lsucpd_verbose > 4)
                 bw::print("port={}: ", n);
             bw::print("{}\n", v);
+#if 0
             if (op->do_long > 0) {
+                for (const auto& entry : op->tc_de_v) {
+                    if (n == entry.port_num_)
+                        list_port(entry, op);
+                }
+            }
+#endif
+        }
+        if (op->do_long > 0) {
+            bw::print("\n");
+            for (auto&& [n, v] : op->summ_out_m) {
                 for (const auto& entry : op->tc_de_v) {
                     if (n == entry.port_num_)
                         list_port(entry, op);
