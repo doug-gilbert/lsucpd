@@ -55,6 +55,6 @@ fi
 
 
 %changelog
-* Tue Sep 12 2023 - dgilbert at interlog dot com
+* Thu Oct 26 2023 - dgilbert at interlog dot com
 - initial version
   * lsucpd-0.90

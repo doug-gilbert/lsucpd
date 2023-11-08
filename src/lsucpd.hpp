@@ -92,4 +92,58 @@ template<typename... Args>
                                   BWP_FMTNS::make_format_args(args...));
 }
 
+void
+sgj_hr_pri_helper(const std::string_view s, sgj_state * jsp);
+
+/* sgj_hr_pri() is similar to sgj_pr_hr() [See sg_json.h]. The difference
+ * is that this template function uses std::format() style formatting from
+ * C++20 rather than C style as used in printf() . */
+template<typename... Args>
+constexpr void sgj_hr_pri(sgj_state * jsp, const std::string_view str_fmt,
+                          Args&&... args)
+{
+    std::string s { BWP_FMTNS::vformat(str_fmt,
+                                   BWP_FMTNS::make_format_args(args...)) };
+
+    if ((NULL == jsp) || (! jsp->pr_as_json))
+        fputs(s.c_str(), stdout);
+    else if (jsp->pr_out_hr) {
+        sgj_hr_pri_helper(s, jsp);
+    }
+}
+
+// Assume this is initialized with '{ }' and is used with C functions like
+// snprintf() and similar.
+template <size_t N>
+struct arr_of_ch {
+    char d_[N];
+
+    char & operator[](size_t k) { return d_[k]; }
+    char operator[](size_t k) const { return d_[k]; }
+
+    char at(size_t k) { if (k < N) return d_[k]; else return 0; }
+
+    size_t size() const { return N; }
+    size_t sz() const { return N; }
+
+    char * begin() { return d_; }
+    const char * begin() const { return d_; }
+    char * data() { return d_; }
+    const char * data() const { return d_; }
+    char * d() { return d_; }
+    const char * d() const { return d_; }
+
+    char * end() { return d_ + N; }
+    const char * end() const { return d_ + N; }
+
+    size_t strlen() const {
+	for (size_t k { }; k < N; ++k) {
+	    if ('\0' == d_[k])
+		return k;
+	}
+	return N;	// this flags there is an issue
+    }
+};
+    
+
 #endif          /* end of #ifndef LSUCPD_HPP */

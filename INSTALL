@@ -1,3 +1,15 @@
+Note:
+The source for lsucpd is written in C++ and expects (almost) full
+compliance with the C++20 standard (from 2020). This means gcc/g++
+version 12 is problematic. The problem is the lack of support for
+the std::format library. g++ version 13 properly implements std::format.
+Currently many distributions still use g++ version 12. This a relatively
+common problem and there is a solution. Both g++ version 12 or clang++
+version 15 can be supported if the 'libfmt' library is available. On
+Debian/Ubuntu use 'apt install libfmt-dev' to install the libfmt library
+and its associated header file.
+
+
 To build:
  $ ./autogen.sh
  $ ./configure

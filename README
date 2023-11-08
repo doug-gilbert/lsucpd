@@ -227,6 +227,9 @@ GNU and Clang C++ compilers forgot to add "partially" when they claimed
 to support C++20. Areas of pain are the <format> and <source_location>
 headers. Clang++ 14 was worse: it supported the <source_location> header
 but not its functionality.
+To build with g++ 12 or clang 15 the 'libfmt' library (and its header file)
+may need to be installed. In Debian/Ubuntu this can be done with
+'apt install libfmt-dev' .
 
 Here are some binary packages:
   Ubuntu 22.04 LTS:
@@ -239,5 +242,5 @@ Finally it is best to keep expectations low, especially if the
  
 
 Douglas Gilbert  <dgilbert@interlog.com>
-14th September 2023
+7th October 2023
 lsucpd version/release 0.90 [svn revision: 13]

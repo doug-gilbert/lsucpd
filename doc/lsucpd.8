@@ -1,11 +1,11 @@
-.TH LSUCPD "8" "September 2023" "lsucpd\-0.90" LSUCPD
+.TH LSUCPD "8" "November 2023" "lsucpd\-0.90" LSUCPD
 .SH NAME
-lsucpd \- list USB-C Power Delivery objects
+lsucpd \- list USB\-C Power Delivery objects
 .SH SYNOPSIS
 .B lsucpd
 [\fI\-\-caps\fR] [\fI\-\-data\fR] [\fI\-\-help\fR] [\fI\-\-json[=JO]\fR]
-[\fI\-\-js\-file=JFN\fR] [\fI\-\-long\fR] [\fI\-\-pdo-snk=SI_PDO[,IND]\fR]
-[\fI\-\-pdo-src=SO_PDO[,IND]\fR] [\fI\-\-rdo=RDO,REF\fR]
+[\fI\-\-js\-file=JFN\fR] [\fI\-\-long\fR] [\fI\-\-pdo\-snk=SI_PDO[,IND]\fR]
+[\fI\-\-pdo\-src=SO_PDO[,IND]\fR] [\fI\-\-rdo=RDO,REF\fR]
 [\fI\-\-sysfsroot=PATH\fR] [\fI\-\-verbose\fR] [\fI\-\-version\fR]
 [\fIFILTER ... \fR]
 .SH DESCRIPTION
@@ -20,9 +20,9 @@ USB Power Delivery is often associated with the 24 pin USB Type C connector
 typically shortened to USB\-C. Sysfs in Linux has two classes that cover
 this facility: /sys/class/typec and /sys/class/usb_power_delivery. The
 /sys/class/typec directory contains 'port<n>' and 'port<n>\-partner' entries.
-A "port" is a USB type C endpoint and with the common USB-C male\-to\-male
+A "port" is a USB type C endpoint and with the common USB\-C male\-to\-male
 cabling, a port corresponds to female USB\-C connectors also knows as
-receptacles. Modern laptops often have two or more female USB-C receptacles
+receptacles. Modern laptops often have two or more female USB\-C receptacles
 which Linux will number: port0, port1, etc. In the future entries in the
 /sys/class/typec/port0/physical_location directory should accurately describe
 where port 0 is (but not in lk 6.4).
@@ -69,10 +69,10 @@ to port1 but if it was, port1 would report that it can source 5 Volts at
 0.9 Amps. More likely that port can source 1.5 Amps and the value shown
 above (real output) is misreported.
 .PP
-Three options: \fI\-\-pdo-snk=SI_PDO[,IND]\fR, \fI\-\-pdo-src=SO_PDO[,IND]\fR
-and \fI\-\-rdo=RDO,REF\fR simply decode the numeric arguments given then
-exit. So these options don't depend on sysfs or any connected USB\-C
-devices.
+Three options: \fI\-\-pdo\-snk=SI_PDO[,IND]\fR,
+\fI\-\-pdo\-src=SO_PDO[,IND]\fR and \fI\-\-rdo=RDO,REF\fR simply decode the
+numeric arguments given then exit. So these options don't depend on sysfs
+or any connected USB\-C devices.
 .PP
 This utility can be categorized as "beta" software, amongst other reasons
 being that USB PD reporting from the Linux kernel (currently lk 6.4) has
@@ -90,7 +90,7 @@ be made of up to 7 PDOs (power data objects).
 .br
 If this option is given once then every sink and source PDO is summarized
 in a single line like this:
-    $ lsucpd -c
+    $ lsucpd \-c
      port0 [pd0]  <<====  partner [pd30]
 
     > pd0: has NO source capabilities
@@ -113,7 +113,7 @@ The leading number (e.g. 3 in "3:fixed_supply") is the PDO index, a value
 that starts at 1.
 .br
 If this option is given twice, those summaries are expanded as shown here:
-    $ lsucpd -cc
+    $ lsucpd \-cc
     > pd0: has NO source capabilities
     >  pd0: sink capabilities:
        >> 1:fixed_supply
@@ -158,7 +158,7 @@ USB data transmission protocols are asymmetric with one end known as
 the 'host' usually issuing commands and the other end known as the "device"
 usually acting on those commands. Prior to USB PD the host was always the
 power source and the device end consumed power (a.k.a. the "sink"). In
-USB PD if both ends are "dual-role data" capable, then the host and
+USB PD if both ends are "dual\-role data" capable, then the host and
 device data roles can be swapped, if both ends agree.
 .br
 When this option is given, a '|>' or '<|' annotation _may_ replace the
@@ -167,8 +167,8 @@ trailing two "==" on the power direction indication. For example:
     port0 [pd0]  <<====  partner [pd24]
     port1 [pd1]  <<==|>  partner [pd25]
 .br
-In the above example port0's partner is a USB-C PD power adapter while
-port1's partner is a USB-C (thunderbolt 3) hub which has its own large
+In the above example port0's partner is a USB\-C PD power adapter while
+port1's partner is a USB\-C (thunderbolt 3) hub which has its own large
 power supply. Both the laptop's port0 and port1 are power sinks but only
 port1 has the '<<==|>' annotation. That annotation means port1 is a
 power sink but is a USB host while its partner (the hub) is a power
@@ -178,8 +178,8 @@ given?
 .br
 The answer is hidden in pd24 source capabilities' first PDO. There is a
 setting in there called "USB Communications Capable" and it is zero
-indicating that pd24 (port0-partner) does not use D+, D- nor any of the
-superspeed lines. Many if not most USB-C power adapters will have that
+indicating that pd24 (port0\-partner) does not use D+, D\- nor any of the
+superspeed lines. Many if not most USB\-C power adapters will have that
 bit cleared, so talking about USB host and device is not relevant.
 .TP
 \fB\-h\fR, \fB\-\-help\fR
@@ -217,7 +217,7 @@ filename is "number_of_alternate_modes" in the directory mentioned in the
 previous paragraph. If found and the value is greater than zero then
 that port (typically the port<n>\-partner) supports 1 or more alternate
 modes. If that value is 1 then a line like this appear in the output:
-     Alternate mode: /sys/class/typec/port0-partner/port0-partner.0
+     Alternate mode: /sys/class/typec/port0\-partner/port0\-partner.0
 .br
 Under that directory should be the regular files in name='value' form.
 One of those should be the description, for example:
@@ -245,7 +245,7 @@ So no examination of sysfs for USB\-C devices takes place.
 .TP
 \fB\-P\fR, \fB\-\-pdo\-src\fR=\fISO_PDO[,IND]\fR
 \fISO_PDO\fR is a 32 bit integer representing a Power Data Object (PDO). The
-action is similar to the \fI\-\-pdo-snk=SI_PDO[,IND]\fR with 'sink'
+action is similar to the \fI\-\-pdo\-snk=SI_PDO[,IND]\fR with 'sink'
 replaced by 'source'.
 .TP
 \fB\-r\fR, \fB\-\-rdo\fR=\fIRDO,REF\fR
@@ -271,7 +271,7 @@ used twice outputs to stdout and shortens the date to yyyymmdd numeric
 format. The first number in the version string is the release number.
 .SH EXAMPLES
 The following examples were performed on a Thinkpad X13 Gen 3 (Lenovo)
-which has two USB-C ports. Lenovo advertises them as "USB4" with
+which has two USB\-C ports. Lenovo advertises them as "USB4" with
 Thunderbolt 4 support and "Power Delivery 3.0". So (some) SPR support but
 no EPR support. With nothing connected to those ports:
     $ lsupd
@@ -285,7 +285,7 @@ ports their default configuration is to receive power (i.e. be 'sink's).
 Anything connected to those ports will be shown to the right of the '<'
 or the '>'. In this case nothing is connected.
 .PP
-Now with a USB-C memory stick connected to port0:
+Now with a USB\-C memory stick connected to port0:
     $ lsucpd
     port0 [pd0]  > {5V, 1.5A}   partner
     port1 [pd1]  <
@@ -294,7 +294,7 @@ port0 now has an unidentified 'partner' and power is being sourced by
 the laptop: at a fixed voltage of 5 Volt with a 1.5 Amp maximum. Nothing
 is connected to port 1.
 .PP
-A Dell 130 Watt USB-C power adapter is now connected to port1:
+A Dell 130 Watt USB\-C power adapter is now connected to port1:
     $ lsucpd
     port0 [pd0]  > {5V, 1.5A}   partner
     port1 [pd1]  <<====  partner [pd11]
@@ -321,7 +321,7 @@ When a "pd" filter argument is given (e.g. pd38) the \fI\-\-caps\fR option
 is assumed (otherwise nothing would be output). If a \fI\-\-caps\fR option
 is given with a "pd" filter it is treated as if the \fI\-\-caps\fR option
 had been given twice:
-    $ lsucpd -c pd38
+    $ lsucpd \-c pd38
     > pd38: source capabilities:
       >> 1:fixed_supply
           dual_role_data='1'
@@ -360,47 +360,47 @@ Here is an example using the \fI\-\-data\fR option:
     port1 [pd1]  <<==|>  partner [pd27]
 .br
 It shows that power (probably 5 Volts at a maximum of 3 Amps) is flowing
-from the laptop's port0 to its partner which use a USB-C DisplayPort
+from the laptop's port0 to its partner which use a USB\-C DisplayPort
 adapter. port1 is consuming power (i.e. it is a sink) sent by a powered
-USB-C hub. In both cases the laptop plays the role of a USB host and each
+USB\-C hub. In both cases the laptop plays the role of a USB host and each
 partner is a USB device.
 .SH INTRODUCTION TO USB\-C PD
 Here are some USB\-C PD basics. The plan is that only one type of cable will
-be needed: a USB-C male to male cable with up to 24 pins carrying power and
+be needed: a USB\-C male to male cable with up to 24 pins carrying power and
 data from one end to the other. Since the pins are so small, four or more
 pins are used to carry power which could be as large as 240 Watts (48 Volts
 at 5 Amps DC).
 .PP
-USB-C Power Delivery (PD) has almost nothing to do with the rest of USB,
+USB\-C Power Delivery (PD) has almost nothing to do with the rest of USB,
 USB "hosts" and "devices" are a secondary consideration (or not present).
-Instead, USB-C PD "sources" (providers of power) and "sinks" (consumers
+Instead, USB\-C PD "sources" (providers of power) and "sinks" (consumers
 of power) are the primary concepts.
 .PP
 USB PD signalling takes place over the CC line (Configuration Control) which
 not only determines which end is the PD source and which is the PD sink, but
-also things like Alternate mode (e.g. for carrying DisplayPort over USB-C).
-In the USB-C receptacle (e.g. the socket on the side of a laptop), there are
-two CC lines called CC1 and CC2. In the mating USB-C plug (e.g. one end of a
-USB-C male to male cable) the same two lines are called CC and Vconn. Why
+also things like Alternate mode (e.g. for carrying DisplayPort over USB\-C).
+In the USB\-C receptacle (e.g. the socket on the side of a laptop), there are
+two CC lines called CC1 and CC2. In the mating USB\-C plug (e.g. one end of a
+USB\-C male to male cable) the same two lines are called CC and Vconn. Why
 aren't the names the same? That is part of the excitement with reversible
-cables! USB-C PD cables are reversible in two senses: each plug can be taken
+cables! USB\-C PD cables are reversible in two senses: each plug can be taken
 out and rotated 180 degrees and re\-inserted; the other sense is that each
 end of the cable is the same, so the cable ends can be switched around.
 For naming the PD relevant lines, it is best to think about CC and Vconn, CC
-goes from one end of the USB-C cable to the other while Vconn powers the
+goes from one end of the USB\-C cable to the other while Vconn powers the
 so\-called Emarker chip (required for cables that can carry more than 3 Amps)
 and retimer chips needed in cables that can carry Superspeed data (e.g. 5,
-10 and 20 Gbps). The most basic USB-C male to male cables don't need Vconn.
-Only USB-C cables that contain retimer chips are referred to as "active".
+10 and 20 Gbps). The most basic USB\-C male to male cables don't need Vconn.
+Only USB\-C cables that contain retimer chips are referred to as "active".
 .PP
 A USB\-C PD source provides power, delivered between the Ground pins and the
 VBus pins. There are four of each (i.e. pins) while Ground may also be
 carried on the outer shield in the cable which is connected to the outer
-shell in USB\-C plugs and receptacles. Notice that the USB-C plug (male)
-shell fits snugly inside the USB-C receptacle (female connector) outer shell.
+shell in USB\-C plugs and receptacles. Notice that the USB\-C plug (male)
+shell fits snugly inside the USB\-C receptacle (female connector) outer shell.
 .PP
-In the absence of USB-C PD intelligence (i.e. computer protocols), resistors
-are used to determine which end is a USB-C source and which is a USB-C sink.
+In the absence of USB\-C PD intelligence (i.e. computer protocols), resistors
+are used to determine which end is a USB\-C source and which is a USB\-C sink.
 A major difference between USB\-C PD and earlier generations is that no
 voltage will be present on Vbus (hence no power) unless those resistors
 (or the PD protocol) identify one end as a source and the other end as a
@@ -410,13 +410,13 @@ power and sink power (e.g. when its battery is being recharged) either
 need separate USB\-C PD receptacles with at least one for charging, or, as
 is more common now, need DRP USB\-C ports (receptacles). Dual Role
 Power (DRP) means that a port can be switched from a sink to a source (or
-vice-versa) under protocol control. There is a related term call DRD
+vice\-versa) under protocol control. There is a related term call DRD
 for Dual Role Data in which one end can specify whether it is a USB Host
 or USB Device. When resistors are determining which is source or sink,
 the source is assumed to be a USB Host and the sink is assumed to be a USB
 device. This matches what previous generations of USB did.
 The "no power will flow" claim is a small stretch: periodically a potential
-USB-C source will send a small amount of current on the CC lines to check if
+USB\-C source will send a small amount of current on the CC lines to check if
 anything has been recently connected.
 .PP
 DRP can cause issues for any devices that doesn't have its own battery. A USB
@@ -425,16 +425,16 @@ end laptops. If a power adapter (connected to the host AC supply) connected
 to the hub suddenly loses power (e.g. a blackout) then the hub will reset
 while the laptop can switch to its internal battery. Any USB device (even
 self powered ones) connected to the hub will lose its connection to the
-laptop only to re-connect a short while later. But the damage may already
+laptop only to re\-connect a short while later. But the damage may already
 have been done. If the hub detects the AC power reducing, it could request
 the laptop to do a "Fast Role Swap" (FRS) during which the laptop goes from
 being a sink to a source without dropping the Vbus voltage (to zero).
 .PP
-USB-C PD revision 1 is dead, curiously it tried to send the CC signal
+USB\-C PD revision 1 is dead, curiously it tried to send the CC signal
 modulated over the Vbus line, an experiment that failed in the real world. So
-USB-C PD revision 2 dropped support for USB A and B (i.e. previous
+USB\-C PD revision 2 dropped support for USB A and B (i.e. previous
 generations of USB) and only supported USB\-C which has a dedicated CC line
-for the PD protocol traffic. USB-C Revision 2 also introduced power output up
+for the PD protocol traffic. USB\-C Revision 2 also introduced power output up
 100 Watts or 60 Watts for cables that were not Emarked and thus could not
 carry more than 3 Amps. Fixed voltages of 5 Volts, 9 Volts, 15 Volts and 20
 Volts were introduced, the higher ones only if the output power was greater
@@ -442,7 +442,7 @@ than a certain level. So the maximum power was 100 Watts using 20 Volts at 5
 Amps with a suitable cable. Notice that 12 Volts was not required but is
 provided by many power adapters.
 .PP
-USB-C PD revision 3.0 introduced the "Programmable Power Supply" feature (PPS)
+USB\-C PD revision 3.0 introduced the "Programmable Power Supply" feature (PPS)
 in which the sink requests a range of voltages (e.g. 3.3 to 11 Volts) at an
 operating current. The source would initially try to provide the highest
 voltage in requested range but if the current draw exceeded the specified

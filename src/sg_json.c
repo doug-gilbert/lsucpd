@@ -1130,6 +1130,7 @@ sgj_haj_xx(sgj_state * jsp, sgj_opaque_p jop, int leadin_sp,
 {
     bool eaten = false;
     bool as_json = (jsp && jsp->pr_as_json);
+    bool json_hex = hex_haj || jsp->pr_hex;
     bool done;
     int n;
     json_type jtype = jvp ? jvp->type : json_none;
@@ -1176,7 +1177,7 @@ sgj_haj_xx(sgj_state * jsp, sgj_opaque_p jop, int leadin_sp,
                     break;
                 case json_integer:
                     sgj_js_nv_ihexstr_nex(jsp, jop, jname, jvp->u.integer,
-                                          hex_haj, sc_mn_s, val_s, nex_s);
+                                          json_hex, sc_mn_s, val_s, nex_s);
                     done = true;
                     break;
                 case json_boolean:
@@ -1193,7 +1194,7 @@ sgj_haj_xx(sgj_state * jsp, sgj_opaque_p jop, int leadin_sp,
                 case json_string:
                     break;
                 case json_integer:
-                    if (hex_haj) {
+                    if (json_hex) {
                         sgj_js_nv_ihexstr(jsp, jop, jname, jvp->u.integer,
                                           sc_mn_s, val_s);
                         done = true;

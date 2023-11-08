@@ -8,10 +8,6 @@ bin_PROGRAMS = lsucpd
 ## CXX = g++
 ## CXX = clang++
 
-## if NEED_LIB_FMT
-## LIBS="$LIBS -lfmt"
-## endif
-
 if DEBUG
 # This is active if --enable-debug given to ./configure
 DBG_CFLAGS = -Wextra -Wmisleading-indentation -Wduplicated-cond -Wlogical-op -Wnull-dereference -Wshadow -Wunused -Wsizeof-array-argument -Wduplicated-branches -Wjump-misses-init
@@ -49,6 +45,7 @@ lsucpd_SOURCES =	lsucpd.cpp \
 			lsucpd.hpp \
 			sg_json_builder.h \
 			sg_json_builder.c \
+			sgj_hr_pri_helper.cpp \
 			sg_pr2serr.h \
 			sg_pr2serr.c \
 			sg_json.h \
