@@ -16,7 +16,7 @@
 
 // Initially this utility will assume C++20 or later
 
-static const char * const version_str = "0.90 20231205 [svn: r16]";
+static const char * const version_str = "0.90 20231206 [svn: r17]";
 
 static const char * const my_name { "lsucpd: " };
 
