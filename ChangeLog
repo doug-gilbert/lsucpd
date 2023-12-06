@@ -1,13 +1,14 @@
 Linux utility for listing USB C Power Delivery information.
 
-Changelog for pre-release lsucpd-0.90 [20231108] [svn: r14]
+Changelog for pre-release lsucpd-0.90 [20231205] [svn: r16]
   - add --pdo-snk= and --pdo-src= options to decode PDOs
   - add --rdo= option to decode RDOs
   - small changes in plain text formatting
-  - start adding JSON support
+  - initial stage of JSON support
   - fix fixed supply PDO raw representation
+  - updates for pd rev 3.2 (SPR AVS)
   - doc/usb_pd_pdo_rdo.pdf added for PDO and RDO tables
   - build framework by copying lsscsi repository
-  - fixes to build with G++ 12, almost builds on clang++ 14
+  - fixes to build with g++ 12, almost builds on clang++ 14
     checked builds on U 22.04 LTS and Fedora 38
 

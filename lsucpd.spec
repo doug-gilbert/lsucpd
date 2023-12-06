@@ -1,5 +1,5 @@
 %define name    lsucpd
-%define version 0.90
+%define version 0.91
 %define release 1
 
 Summary: 	List USB-C Power Delivery ports and partners
@@ -55,6 +55,9 @@ fi
 
 
 %changelog
+* Tue Dec 05 2023 - dgilbert at interlog dot com
+- minor cleanups
+  * lsucpd-0.91
 * Thu Oct 26 2023 - dgilbert at interlog dot com
 - initial version
   * lsucpd-0.90

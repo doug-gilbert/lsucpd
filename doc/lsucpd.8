@@ -1,4 +1,4 @@
-.TH LSUCPD "8" "November 2023" "lsucpd\-0.90" LSUCPD
+.TH LSUCPD "8" "December 2023" "lsucpd\-0.91" LSUCPD
 .SH NAME
 lsucpd \- list USB\-C Power Delivery objects
 .SH SYNOPSIS
@@ -249,13 +249,19 @@ action is similar to the \fI\-\-pdo\-snk=SI_PDO[,IND]\fR with 'sink'
 replaced by 'source'.
 .TP
 \fB\-r\fR, \fB\-\-rdo\fR=\fIRDO,REF\fR
+This option will decode \fIRDO\fR into its component fields.
 \fIRDO\fR is a 32 bit integer representing a Request Data Object (RDO). To
 decode a RDO one needs to know what type of source PDO its "Object Position'
 field refers to. Those types are either Fixed, Battery, Variable, PPS or
 AVS and one of those types must be given in the \fIREF\fR field. The first
-letter of each is sufficient.
-.br
-This option will decode \fIRDO\fR into its component fields.
+letter of each is sufficient. The letters 'S' and 'E' are also accepted as
+outlined in the next paragraph.
+.IP
+Prior to PD revision 3.2 the Adjustable Voltage Supply was only available
+in EPR mode (15 to 48 Volts). However in PD revision 3.2 a new SPR AVS
+variant was introduced (9 to 20 Volts). So now we have SPR_AVS and EPR_AVS.
+If an unadorned 'AVS' is given then it is assumed to be EPR_AVS as it
+pre\-existed SPR_AVS by 2.5 years.
 .TP
 \fB\-y\fR, \fB\-\-sysfsroot\fR=\fIPATH\fR
 assumes sysfs is mounted at PATH instead of the default '/sys' . If this
@@ -266,9 +272,7 @@ outputs directory names where information is found. Use multiple times for
 more output.
 .TP
 \fB\-V\fR, \fB\-\-version\fR
-outputs version information then exits. If used once outputs to stderr; if
-used twice outputs to stdout and shortens the date to yyyymmdd numeric
-format. The first number in the version string is the release number.
+outputs version information then exits.
 .SH EXAMPLES
 The following examples were performed on a Thinkpad X13 Gen 3 (Lenovo)
 which has two USB\-C ports. Lenovo advertises them as "USB4" with
@@ -452,6 +456,27 @@ constant current (CC) mode but the abbreviation CC is obviously confusing.
 The CL function in the PD source is typically done via hardware which is
 typically a bit safer (and faster) than doing it with software. That type of
 current limiting is very useful for charging Lithium Ion batteries.
+.SH JSON
+JSON support in this utility is in its initial stages. It will probably
+remain like this until USB PD visibility into the Linux kernel, plus how the
+kernel reports that information to sysfs, becomes more mature. Regular files
+in the relevant sysfs directories have their values output as strings. Only
+a few strings are decoded, for example, the 'number_of_alternate_modes'
+attribute is evaluated since if it is greater than zero more subdirectories
+need to be visited. Note that this utility doesn't look for
+specific (attribute/file) names, so if the Linux kernel changes, adds or
+removes some names, that will be reflected in the plain text and JSON output.
+.PP
+When USB PD first became available it was handled within the BIOS or Embedded
+Controller with no visibility given to the host Operating System. Only recent
+generations of Intel laptop processors use ACPI to provide USB PD visibility
+via the USB Type-C Connector System Software Interface (UCSI) Specification.
+Capability data is available but on the author's laptop, RDO values are
+incorrectly reported. The most recent, accepted Request Data Object (RDO)
+is required to know the current PD contract and which end sent it. The Linux
+kernel power_supply sysfs objects still don't seem to have a way to
+represent "Dual Role Power" (DRP) which is the concepts of the power source
+and sink switching roles, potentially with no power delivery interruption.
 .SH AUTHOR
 Written by Doug Gilbert
 .SH "REPORTING BUGS"

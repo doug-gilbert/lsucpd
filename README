@@ -28,7 +28,7 @@ it is associated with. For example:
     port0 [pd0]  <<====  partner [pd4] 
     port1 [pd1]  <<====  partner [pd5]
 The direction that power is flowing is indicated by "====>>" or "<<===="
-between each port<n> and its partner. probably the most useful option
+between each port<n> and its partner. Probably the most useful option
 is --caps which will additionally list the source and sink capabilities of
 each "pd<n>" instance.
 
@@ -41,14 +41,14 @@ Can do:
       PD connections
     - display partner's alternate modes, if any (with -ll option)
     - decode numeric PDOs and RDOs
+    - optionally output JSON instead of plain text
 Cannot do (yet):
     - show the PD contract that is active. In USB PD jargon this requires
       the active RDO to be visible via sysfs
-    - output JSON instead of plain text
     - show the actual voltage and current (and its direction) at the
       time this utility is executed
 
-The last one is aspirational and would probably require extra hardware.
+The last one is aspirational and may probably require extra hardware.
 
 This is the initial version of this utility and has only been tested on one
 platform: Thinkpad X13 G3 by Lenovo. That platform relies on the UCSI
@@ -83,6 +83,9 @@ at github:
     https://github.com/doug-gilbert/clone_pseudo_fs
 designed to clone the likes of sysfs, procfs and devfs. The lsucpd utility
 relies only on sysfs.
+For compatibility with lsblk, lsmem and some other ls* utilities there is
+also a --sysroot=AR_PT option that defaults to '/'. If AR_PT is set to /tmp
+then this utility will attempt to data-mine in /tmp/sys directory.
 
 Some background for USB PD in the Linux kernel is discussed in this post:
     https://marc.info/?l=linux-usb&m=169278141600478&w=2
@@ -95,11 +98,11 @@ building this package are in the last section.
 USB-C PD details
 ----------------
 There are two USB standards covering this area, recent versions are:
-   1) USB Type-C Cable and Connector Specification, Release 2.1
-   2) USB Power Delivery Specification, Revision 3.1, Version 1.8
+   1) USB Type-C Cable and Connector Specification, Release 2.3
+   2) USB Power Delivery Specification, Revision 3.2, Version 1.0
       - this is optional, so USB-C ports don't necessarily support PD
 
-Both these documents are intimidating in size (446 and 870 pages
+Both these documents are intimidating in size (424 and 1113 pages
 respectively) but are freely available at usb.org in the Document library.
 Both documents have extensive "Terms and Abbreviations" sections (1.5 and
 1.6 respectively) that are very useful references because there are a lot
@@ -130,8 +133,8 @@ memory key which is very unlikely to support USB PD. In a similar way there
 are two data roles: host and device. A USB PD port that can play either role
 is called "Dual Role Data" (DRD).
 
-Some other related jargon is UFP for upward facing port and DFP for
-downward facing port. The mental picture here is with the USB host at the
+Some other related jargon is UFP for Upward Facing Port and DFP for
+Downward Facing Port. The mental picture here is with the USB host at the
 top of a hierarchy with USB devices at the bottom (i.e. the leaves) with
 possibly a USB hub in the middle. So an UFP on a hub connects to a DFP on
 the host (e.g. a laptop).
@@ -156,11 +159,11 @@ cross-section of the pipe. Further the "fluid" in the case of electricity
 is made up of electrons. Around 6.2 x 10^18 electrons is called a Coulomb
 and a flow of one Coulomb per second is called an Amp. 
 
-All electrical conductors have resistance which converts part of the current
+All electrical conductors have resistance which converts part of the power
 passing through them to heat. That is usually wasteful (unless it is winter).
 Georg Ohm is credited with the formula that bears his name:
    V = I . R	   (3)
-where V is in Volts, I is current in Amps and R is in Ohms.
+where V is in Volts, I is current in Amps and R is resistance in Ohms.
 
 Combining formula (2) and (3) by substituting V gives;
   P = I^2 . R      (4)
@@ -199,7 +202,7 @@ safe nominal voltage (DC). Both the car industry (for non-traction
 purposes) and USB-C PD EPR have chosen 48 Volts DC as their highest
 delivery voltage. These are for systems that humans may come in contact
 with. Most laptops use around 20 Volts DC while some large MacBooks
-use 28 Volts and Apple provides a 140 Watt USB PD (EPR) charger.
+use 28 Volts and Apple supplies a 140 Watt USB PD (EPR) charger.
 
 
 Building package
@@ -231,16 +234,11 @@ To build with g++ 12 or clang 15 the 'libfmt' library (and its header file)
 may need to be installed. In Debian/Ubuntu this can be done with
 'apt install libfmt-dev' .
 
-Here are some binary packages:
-  Ubuntu 22.04 LTS:
-	https://doug-gilbert.github.io/p/lsucpd_0.90-0.1_amd64.deb
-  Fedora 38:
-	https://doug-gilbert.github.io/p/lsucpd-0.90-1.x86_64.rpm
 
 Finally it is best to keep expectations low, especially if the
 /sys/class/typec directory doesn't exist ...
  
 
 Douglas Gilbert  <dgilbert@interlog.com>
-7th October 2023
-lsucpd version/release 0.90 [svn revision: 13]
+5th December 2023
+lsucpd version/release 0.91 [svn revision: 16]

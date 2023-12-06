@@ -16,7 +16,7 @@
 
 // Initially this utility will assume C++20 or later
 
-static const char * const version_str = "0.90 20231108 [svn: r14]";
+static const char * const version_str = "0.90 20231205 [svn: r16]";
 
 static const char * const my_name { "lsucpd: " };
 
@@ -140,12 +140,13 @@ enum class pdo_e {
     pdo_fixed,
     pdo_variable,
     pdo_battery,
-    apdo_pps,   // SPR only: Vmin: 5 (was 3.3), Vmax: 21
-                // in PPS the source does current limiting (CL)
-    apdo_avs,   // EPR only: Vmin: 15; Vmax: 48
-                // in AVS the source does NOT do current limiting (CL)
-                // That is why the names are different: (SPR) PPS versus
-                // (EPR) AVS
+    apdo_pps,     // SPR only: Vmin: 5 (was 3.3), Vmax: 21
+                  // in PPS the source does current limiting (CL)
+    apdo_spr_avs, // Vmin: 9; Vmax: 20  [new in PD 3.2]
+    apdo_epr_avs, // Vmin: 15; Vmax: 48
+                  // in AVS the source does NOT do current limiting (CL)
+                  // That is why the names are different: (SPR) PPS versus
+                  // (SPR/EPR) AVS
 };
 
 struct pdo_elem {
@@ -213,6 +214,21 @@ struct opts_t {
     std::vector<sstring> filter_pd_v;
 };
 
+struct do_fld_desc_t {   // 4 bytes long describing a PDO and a RDO field
+    uint8_t low_pdo_bit;        // lowest bit address in <n> bit field
+    uint8_t num_bits_typ;       // lower 4 bits: num_bits, upper 4 bits: type
+                                // 0 --> filler as is rest of row
+    uint8_t mult;               // multiplier to convert to centivolts,
+                                // centiamps, centiwatts, 0 for unit-less.
+                                // 0xff is for special handling
+    uint8_t nam_str_off;        // index within pdo_str[] of field name
+};
+
+#define P_IT_FL_START 0x10      // first entry or first entry of new PDO
+#define P_IT_FL_SINK  0x20      // sink_pdo_capability or giveback_flag=0
+#define P_IT_FL_SRC   0x40      // source_pdo_capability or giveback_flag=1
+#define P_IT_FL_CONT  0x80      // continue if PDO index is 1, skip otherwise
+
 
 // Note that "no_argument" entries should appear in chk_short_opts
 static const struct option long_options[] = {
@@ -239,6 +255,148 @@ static const struct option long_options[] = {
     {0, 0, 0, 0},
 };
 
+// Define one PDO string with embedded <null> chars. starting position
+// indexes shown in comments to the right.
+static const char * pdo_str[] = {
+    "dual_role_power",                  // 0
+    "usb_suspend_supported",
+    "unconstrained_power",
+    "usb_communication_capable",
+    "unchunked_message_supported",      // 4
+    "epr_mode_supported",
+    "higher_capability",
+    "fast_role_swap",
+    "peak_current",                     // 8
+    "voltage",
+    "maximum_current",
+    "operational_current",
+    "maximum_voltage",                  // 12
+    "minimum_voltage",
+    "pps_power_limited",
+    "dual_role_data",
+    "maximum_power",                    // 16
+    "operational_power",
+    "pd_power",
+
+    /* Following specifically for RDOs */
+    "object_position",
+    "giveback_flag",                    // 20
+    "capability_mismatch",
+    "no_usb_suspend",
+    "operating_current",
+    "maximum_operating_current",        // 24
+    "minimum_operating_current",
+    "operating_power",
+    "maximum_operating_power",
+    "minimum_operating_power",          // 28
+    "output_voltage",
+};
+
+/* PDO and RDO field definitions based on an array of do_fld_desc_t objects */
+static const struct do_fld_desc_t pdo_part_a[67] = {
+
+// Start PDO entries:
+/* index=0 */
+    // Following block for Fixed PDOs at object position 1
+    {29, 1 | P_IT_FL_START, 0, 0 /* DRP */},
+    {28, 1 | P_IT_FL_SINK, 0, 6 /* HC */},
+    {28, 1 | P_IT_FL_SRC, 0, 1 /* USS (Suspend supported) */},
+    {27, 1 /* source+sink */, 0, 2 /* UCP (Unconstrained power) */},
+    {26, 1, 0, 3 /* UCC (USB comms capable) */},
+    {25, 1, 0, 15 /* DRD (Dual-Role data) */},
+    {24, 1 | P_IT_FL_SRC, 0, 4 /* UCH (Unchunked ext msg support) */},
+    {23, 1 | P_IT_FL_SRC, 0, 5 /* EPR (EPR mode capable) */},
+    {23, 2 | P_IT_FL_SINK | P_IT_FL_CONT, 0, 7 /* FRS (Fast Role swap) */},
+    // vvvvvvvvvvvvvvvvvv continue on due to P_IT_FL_CONT flag vvvvvvvvvvvvv
+    // Following block for all Fixed PDOs
+    {20, 2 | P_IT_FL_START | P_IT_FL_SRC, 0, 8 /* Peak current, unit-less */},
+    {10, 10, 5, 9 /* V (fixed Voltage in 50 mV units) */},
+    {0, 10 | P_IT_FL_SRC, 1, 10 /* Imax (in 10 mA units) */},
+    {0, 10 | P_IT_FL_SINK, 1, 11 /* Ioperational (in 10 mA units) */},
+
+/* index=13 */
+    // Following block for Battery PDOs [B31..B30=01b]
+    {20, 10 | P_IT_FL_START, 5, 12 /* Vmax (in 50 mV units) */},
+    {10, 10, 5, 13 /* Vmin (in 50 mV units) */},
+    {0, 10 | P_IT_FL_SRC, 25, 16 /* Pmax (in 250 mW units) */},
+    {0, 10 | P_IT_FL_SINK, 25, 17 /* Poperational (in 250 mW units) */},
+
+/* index=17 */
+    // Following block for Variable PDOs [B31..B30=10b]
+    {20, 10 | P_IT_FL_START, 5, 12 /* Vmax (in 50 mV units) */},
+    {10, 10, 5, 13 /* Vmin (in 50 mV units) */},
+    {0, 10 | P_IT_FL_SRC, 1, 10 /* Imax (in 10 mA units) */},
+    {0, 10 | P_IT_FL_SINK, 1, 11 /* Ioperational (in 10 mA units) */},
+
+/* index=21 */
+    // Following block for PPS PDOs [B31..B28=1100b]
+    {27, 1 | P_IT_FL_START | P_IT_FL_SRC, 0, 14 /* PPL (power limited) */},
+    {17, 8, 10, 12 /* Vmax (in 100 mV units) */},
+    {8, 8, 10, 13  /* Vmin (in 100 mV units) */},
+    {0, 7 | P_IT_FL_SRC, 5, 10 /* Imax (in 50 mA units) */},
+    {0, 7 | P_IT_FL_SINK, 5, 11 /* Ioperational (in 50 mA units) */},
+
+/* index=26 */
+    // Following block for AVS PDOs [B31..B28=1101b]
+    {26, 2 | P_IT_FL_START | P_IT_FL_SRC, 0, 8 /* Peak current, unit-less */},
+    {17, 9, 10, 12 /* Vmax (in 100 mV units) */},
+    {8, 8, 10, 13  /* Vmin (in 100 mV units) */},
+    {0, 8, 100, 18 /* PDP  (in 1 W units) */},  // Power Delivery Power
+
+// Start RDO entries:
+/* index=30  object position refers to partner's source PDO pack */
+    // Following block for Fixed and Variable RDOs
+    {28, 4 | P_IT_FL_START, 0, 19 /* Object position (1...13) valid */},
+    {27, 1, 0, 20  /* GiveBack flag */},
+    {26, 1, 0, 21  /* Capability mismatch */},
+    {25, 1, 0, 3   /* USB comms capable */},
+    {24, 1, 0, 22  /* No USB suspend */},
+    {23, 1, 0, 4   /* Unchunked ext msg support */},
+    {22, 1, 0, 5   /* EPR (EPR mode capable) */},
+    {10, 10, 1, 23 /* Iop (in 10 mA units) */},
+    {0, 10 | P_IT_FL_SINK, 1, 24 /* Imax (in 10 mA units) */},
+    {0, 10 | P_IT_FL_SRC, 1, 25  /* Imin (in 10 mA units) */},
+
+/* index=40 */
+    // Following block for Battery RDOs
+    {28, 4 | P_IT_FL_START, 0, 19 /* Object position (1...13) valid */},
+    {27, 1, 0, 20  /* GiveBack flag */},
+    {26, 1, 0, 21  /* Capability mismatch */},
+    {25, 1, 0, 3   /* USB comms capable */},
+    {24, 1, 0, 22  /* No USB suspend */},
+    {23, 1, 0, 4   /* Unchunked ext msg support */},
+    {22, 1, 0, 5   /* EPR (EPR mode capable) */},
+    {10, 10, 25, 26 /* Pop (in 250 mW units) */},
+    {0, 10 | P_IT_FL_SINK, 25, 27 /* Pmax (in 250 mW units) */},
+    {0, 10 | P_IT_FL_SRC, 25, 28  /* Pmin (in 250 mW units) */},
+
+/* index=50 */
+    // Following block for PPS RDOs
+    {28, 4 | P_IT_FL_START, 0, 19 /* Object position (1...13) valid */},
+    {26, 1, 0, 21  /* Capability mismatch */},
+    {25, 1, 0, 3   /* USB comms capable */},
+    {24, 1, 0, 22  /* No USB suspend */},
+    {23, 1, 0, 4   /* Unchunked ext msg support */},
+    {22, 1, 0, 5   /* EPR (EPR mode capable) */},
+    {9, 11, 2, 29  /* Output voltage (in 20 mV units) */},
+    /* the following field sets the current limit for PPS */
+    {0, 7, 5, 23   /* Operating current (in 50 mA units) */},
+
+/* index=58 */
+    // Following block for AVS RDOs, no current limiting supported
+    {28, 4 | P_IT_FL_START, 0, 19 /* Object position (1...13) valid */},
+    {26, 1, 0, 21  /* Capability mismatch */},
+    {25, 1, 0, 3   /* USB comms capable */},
+    {24, 1, 0, 22  /* No USB suspend */},
+    {23, 1, 0, 4   /* Unchunked ext msg support */},
+    {22, 1, 0, 5   /* EPR (EPR mode capable) */},   // can this be != 1 ??
+    {9, 11, 0xff, 29  /* Output voltage (in 25 mV units) [special] */},
+    {0, 7, 5, 23   /* Operating current (in 50 mA units) */},
+
+/* index=66 */
+    {0, 0, 0, 0},       // sentinel
+};
+
 static sstring sysfs_root { "/sys" };
 static const char * const upd_sn = "usb_power_delivery";
 static const char * const class_s = "class";
@@ -252,10 +410,13 @@ static const char * const fixed_ln_sn = "fixed_supply";
 static const char * const batt_ln_sn = "battery";
 static const char * const vari_ln_sn = "variable_supply";
 static const char * const pps_ln_sn = "programmable_supply";
-static const char * const avs_ln_sn = "adjustable_supply";
+// static const char * const avs_ln_sn = "adjustable_supply"; // may NEED ...
+static const char * const spr_avs_ln_sn = "spr_adjustable_supply";
+static const char * const epr_avs_ln_sn = "epr_adjustable_supply";
 static const char * const num_alt_modes_sn = "number_of_alternate_modes";
 static const char * const ct_sn = "class_typec";
 static const char * const cupd_sn = "class_usb_power_delivery";
+static const char * const lsucpd_jn_sn = "lsucpd_join";
 
 static fs::path sc_pt;
 static fs::path sc_typec_pt;
@@ -332,7 +493,8 @@ pdo_e_to_str(enum pdo_e p_e) noexcept
     case pdo_e::pdo_variable: return vari_ln_sn;
     case pdo_e::pdo_battery: return batt_ln_sn;
     case pdo_e::apdo_pps: return pps_ln_sn;
-    case pdo_e::apdo_avs: return avs_ln_sn;
+    case pdo_e::apdo_spr_avs: return spr_avs_ln_sn;
+    case pdo_e::apdo_epr_avs: return epr_avs_ln_sn;
     default: return "no supply";
     }
 }
@@ -824,7 +986,9 @@ build_raw_pdo(const fs::path & pt, pdo_elem & a_pdo) noexcept
                 r_pdo |= (v & 1) << 27;
         }
         break;
-    case pdo_e::apdo_avs:       // APDO: B31...B30: 11b; B29...B28: 01b [EPR]
+    case pdo_e::apdo_spr_avs:   // APDO: B31...B30: 11b; B29...B28: 10b [SPR]
+        break;
+    case pdo_e::apdo_epr_avs:   // APDO: B31...B30: 11b; B29...B28: 01b [EPR]
         r_pdo = 3 << 30;
         r_pdo |= 1 << 28;
         mw = get_milliwatts("pdp", ss_map);
@@ -935,7 +1099,8 @@ build_summary_s(const pdo_elem & a_pdo, struct opts_t * op,
                           mv / 1000, (mv % 1000) / 10,
                           ma / 1000, (ma % 1000) / 10,
                           (v ? " [PL]" : ""));
-    case pdo_e::apdo_avs:       // APDO: B31...B30: 11b; B29...B28: 01b [EPR]
+    case pdo_e::apdo_spr_avs:   // APDO: B31...B30: 11b; B29...B28: 10b [SPR]
+    case pdo_e::apdo_epr_avs:   // APDO: B31...B30: 11b; B29...B28: 01b [EPR]
         mw = get_milliwatts(pdp_sn, ss_map);
         sgj_js_nv_ihex_nex(jsp, jop, pdp_sn, mw, false, u_mw_s);
         mv_min = get_millivolts(min_v_sn, ss_map);
@@ -989,8 +1154,10 @@ populate_pdos(const fs::path & cap_pt, bool is_source_caps,
                         a_pdo.pdo_el_ = pdo_e::pdo_variable;
                     else if (0 == strcmp(cp + 1, pps_ln_sn))
                         a_pdo.pdo_el_ = pdo_e::apdo_pps;
-                    else if (0 == strcmp(cp + 1, avs_ln_sn))
-                        a_pdo.pdo_el_ = pdo_e::apdo_avs;
+                    else if (0 == strcmp(cp + 1, spr_avs_ln_sn))
+                        a_pdo.pdo_el_ = pdo_e::apdo_spr_avs;
+                    else if (0 == strcmp(cp + 1, epr_avs_ln_sn))
+                        a_pdo.pdo_el_ = pdo_e::apdo_epr_avs;
                     else
                         a_pdo.pdo_el_ = pdo_e::pdo_null;
 
@@ -1116,7 +1283,7 @@ list_port(const tc_dir_elem & entry, struct opts_t * op,
           sgj_opaque_p jop) noexcept
 {
     bool want_alt_md = (op->do_long > 1);
-    unsigned int u { };
+    unsigned int n_a_m { };
     std::error_code ec { };
     sgj_state * jsp { &op->json_st };
     sgj_opaque_p jo2p;
@@ -1137,15 +1304,15 @@ list_port(const tc_dir_elem & entry, struct opts_t * op,
             sgj_js_nv_s(jsp, jop, n.c_str(), v.c_str());
             if (want_alt_md && (n == num_alt_modes_sn)) {
                 /* only one should match, need to visit the rest */
-                if (1 != sscanf(v.c_str(), "%u", &u)) {
+                if (1 != sscanf(v.c_str(), "%u", &n_a_m)) {
                     print_err(1, "unable to decode {}\n", num_alt_modes_sn);
                     continue;
                 }
             }
         }
-        if (u > 0) {
+        if (n_a_m > 0) {
             jap = sgj_named_subarray_r(jsp, jop, "alternate_mode_list");
-            for (unsigned int k = 0; k < u; ++k) {
+            for (unsigned int k = 0; k < n_a_m; ++k) {
                 const auto alt_md_pt { entry.path() /
                             sstring(basename + "." + std::to_string(k)) };
                 if (fs::is_directory(alt_md_pt, ec)) {
@@ -1153,7 +1320,7 @@ list_port(const tc_dir_elem & entry, struct opts_t * op,
 
                     jo2p = sgj_new_unattached_object_r(jsp);
                     ec = map_d_regu_files(alt_md_pt, nv_m);
-                    sgj_hr_pri(jsp, "    Alternate mode: {}\n",
+                    sgj_hr_pri(jsp, "      Alternate mode: {}\n",
                                alt_md_pt.string());
                     if (! ec) {
                         for (auto&& [n, v] : nv_m) {
@@ -1426,162 +1593,32 @@ scan_for_upd_obj(struct opts_t * op) noexcept
     return ecc;
 }
 
-struct do_fld_desc_t {   // 4 bytes long describing a PDO and RDO field
-    uint8_t low_pdo_bit;        // lowest bit address in <n> bit field
-    uint8_t num_bits_typ;       // lower 4 bits: num_bits, upper 4 bits: type
-                                // 0 --> filler as is rest of row
-    uint8_t mult;               // multiplier to convert to centivolts,
-                                // centiamps, centiwatts, 0 for unit-less.
-                                // 0xff is for special handling
-    uint8_t nam_str_off;        // in reference to pdo_str[]
-};
+static void
+do_my_join(struct opts_t * op, sgj_opaque_p jop) noexcept
+{
+    sgj_state * jsp { &op->json_st };
+    sgj_opaque_p jo2p { };
+    sgj_opaque_p jap { };
 
-#define P_IT_FL_START 0x10
-#define P_IT_FL_SINK  0x20      // sink_pdo_capabaility or giveback_flag=0
-#define P_IT_FL_SRC   0x40      // source_pdo_capabaility or giveback_flag=1
-#define P_IT_FL_CONT  0x80
+    jap = sgj_named_subarray_r(jsp, jop, "typec_dir_elem_list");
+    for (const auto& elem : op->tc_de_v) {
+        jo2p = sgj_new_unattached_object_r(jsp);
+        sgj_js_nv_i(jsp, jo2p, "partner", elem.partner_);
+        sgj_js_nv_i(jsp, jo2p, "upd_dir_exists", elem.upd_dir_exists_);
+        sgj_js_nv_i(jsp, jo2p, "source_sink_known", elem.source_sink_known_);
+        sgj_js_nv_i(jsp, jo2p, "is_source", elem.is_source_);
+        sgj_js_nv_i(jsp, jo2p, "data_role_known", elem.data_role_known_);
+        sgj_js_nv_i(jsp, jo2p, "is_host", elem.is_host_);
+        sgj_js_nv_i(jsp, jo2p, "pow_op_mode", (unsigned int)elem.pow_op_mode_);
+        sgj_js_nv_i(jsp, jo2p, "port_num", elem.port_num_);
+        sgj_js_nv_i(jsp, jo2p, "pd_inum", elem.pd_inum_);
+        sgj_js_nv_i(jsp, jo2p, "partner_ind", elem.partner_ind_);
+        sgj_js_nv_s(jsp, jo2p, "match_str_", elem.match_str_.c_str());
 
-// Define one PDO string with embedded <null> chars. starting position
-// indexes shown in comments to the right.
-static const char * pdo_str[] = {
-    "dual_role_power",                  // 0
-    "usb_suspend_supported",
-    "unconstrained_power",
-    "usb_communication_capable",
-    "unchunked_message_supported",      // 4
-    "epr_mode_supported",
-    "higher_capability",
-    "fast_role_swap",
-    "peak_current",                     // 8
-    "voltage",
-    "maximum_current",
-    "operational_current",
-    "maximum_voltage",                  // 12
-    "minimum_voltage",
-    "pps_power_limited",
-    "dual_role_data",
-    "maximum_power",                    // 16
-    "operational_power",
-    "pd_power",
 
-    /* Following specifically for RDOs */
-    "object_position",
-    "giveback_flag",                    // 20
-    "capability_mismatch",
-    "no_usb_suspend",
-    "operating_current",
-    "maximum_operating_current",        // 24
-    "minimum_operating_current",
-    "operating_power",
-    "maximum_operating_power",
-    "minimum_operating_power",          // 28
-    "output_voltage",
-};
-
-/* PDO and RDO field definitions based on an array of do_fld_desc_t objects */
-static const struct do_fld_desc_t pdo_part_a[67] = {
-
-// Start PDO entries:
-/* index=0 */
-    // Following block for Fixed PDOs at object position 1
-    {29, 1 | P_IT_FL_START, 0, 0 /* DRP */},
-    {28, 1 | P_IT_FL_SINK, 0, 6 /* HC */},
-    {28, 1 | P_IT_FL_SRC, 0, 1 /* USS (Suspend supported) */},
-    {27, 1 /* source+sink */, 0, 2 /* UCP (Unconstrained power) */},
-    {26, 1, 0, 3 /* UCC (USB comms capable) */},
-    {25, 1, 0, 15 /* DRD (Dual-Role data) */},
-    {24, 1 | P_IT_FL_SRC, 0, 4 /* UCH (Unchunked ext msg support) */},
-    {23, 1 | P_IT_FL_SRC, 0, 5 /* EPR (EPR mode capable) */},
-    {23, 2 | P_IT_FL_SINK | P_IT_FL_CONT, 0, 7 /* FRS (Fast Role swap) */},
-    // vvvvvvvvvvvvvvvvvv continue on due to P_IT_FL_CONT flag vvvvvvvvvvvvv
-    // Following block for all Fixed PDOs
-    {20, 2 | P_IT_FL_START | P_IT_FL_SRC, 0, 8 /* Peak current, unit-less */},
-    {10, 10, 5, 9 /* V (fixed Voltage in 50 mV units) */},
-    {0, 10 | P_IT_FL_SRC, 1, 10 /* Imax (in 10 mA units) */},
-    {0, 10 | P_IT_FL_SINK, 1, 11 /* Ioperational (in 10 mA units) */},
-
-/* index=13 */
-    // Following block for Battery PDOs [B31..B30=01b]
-    {20, 10 | P_IT_FL_START, 5, 12 /* Vmax (in 50 mV units) */},
-    {10, 10, 5, 13 /* Vmin (in 50 mV units) */},
-    {0, 10 | P_IT_FL_SRC, 25, 16 /* Pmax (in 250 mW units) */},
-    {0, 10 | P_IT_FL_SINK, 25, 17 /* Poperational (in 250 mW units) */},
-
-/* index=17 */
-    // Following block for Variable PDOs [B31..B30=10b]
-    {20, 10 | P_IT_FL_START, 5, 12 /* Vmax (in 50 mV units) */},
-    {10, 10, 5, 13 /* Vmin (in 50 mV units) */},
-    {0, 10 | P_IT_FL_SRC, 1, 10 /* Imax (in 10 mA units) */},
-    {0, 10 | P_IT_FL_SINK, 1, 11 /* Ioperational (in 10 mA units) */},
-
-/* index=21 */
-    // Following block for PPS PDOs [B31..B28=1100b]
-    {27, 1 | P_IT_FL_START | P_IT_FL_SRC, 0, 14 /* PPL (power limited) */},
-    {17, 8, 10, 12 /* Vmax (in 100 mV units) */},
-    {8, 8, 10, 13  /* Vmin (in 100 mV units) */},
-    {0, 7 | P_IT_FL_SRC, 5, 10 /* Imax (in 50 mA units) */},
-    {0, 7 | P_IT_FL_SINK, 5, 11 /* Ioperational (in 50 mA units) */},
-
-/* index=26 */
-    // Following block for AVS PDOs [B31..B28=1101b]
-    {26, 2 | P_IT_FL_START | P_IT_FL_SRC, 0, 8 /* Peak current, unit-less */},
-    {17, 9, 10, 12 /* Vmax (in 100 mV units) */},
-    {8, 8, 10, 13  /* Vmin (in 100 mV units) */},
-    {0, 8, 100, 18 /* PDP  (in 1 W units) */},  // Power Delivery Power
-
-// Start RDO entries:
-/* index=30  object position refers to partner's source PDO pack */
-    // Following block for Fixed and Variable RDOs
-    {28, 4 | P_IT_FL_START, 0, 19 /* Object position (1...13) valid */},
-    {27, 1, 0, 20  /* GiveBack flag */},
-    {26, 1, 0, 21  /* Capability mismatch */},
-    {25, 1, 0, 3   /* USB comms capable */},
-    {24, 1, 0, 22  /* No USB suspend */},
-    {23, 1, 0, 4   /* Unchunked ext msg support */},
-    {22, 1, 0, 5   /* EPR (EPR mode capable) */},
-    {10, 10, 1, 23 /* Iop (in 10 mA units) */},
-    {0, 10 | P_IT_FL_SINK, 1, 24 /* Imax (in 10 mA units) */},
-    {0, 10 | P_IT_FL_SRC, 1, 25  /* Imin (in 10 mA units) */},
-
-/* index=40 */
-    // Following block for Battery RDOs
-    {28, 4 | P_IT_FL_START, 0, 19 /* Object position (1...13) valid */},
-    {27, 1, 0, 20  /* GiveBack flag */},
-    {26, 1, 0, 21  /* Capability mismatch */},
-    {25, 1, 0, 3   /* USB comms capable */},
-    {24, 1, 0, 22  /* No USB suspend */},
-    {23, 1, 0, 4   /* Unchunked ext msg support */},
-    {22, 1, 0, 5   /* EPR (EPR mode capable) */},
-    {10, 10, 25, 26 /* Pop (in 250 mW units) */},
-    {0, 10 | P_IT_FL_SINK, 25, 27 /* Pmax (in 250 mW units) */},
-    {0, 10 | P_IT_FL_SRC, 25, 28  /* Pmin (in 250 mW units) */},
-
-/* index=50 */
-    // Following block for PPS RDOs
-    {28, 4 | P_IT_FL_START, 0, 19 /* Object position (1...13) valid */},
-    {26, 1, 0, 21  /* Capability mismatch */},
-    {25, 1, 0, 3   /* USB comms capable */},
-    {24, 1, 0, 22  /* No USB suspend */},
-    {23, 1, 0, 4   /* Unchunked ext msg support */},
-    {22, 1, 0, 5   /* EPR (EPR mode capable) */},
-    {9, 11, 2, 29  /* Output voltage (in 20 mV units) */},
-    /* the following field sets the current limit for PPS */
-    {0, 7, 5, 23   /* Operating current (in 50 mA units) */},
-
-/* index=58 */
-    // Following block for AVS RDOs, no current limiting supported
-    {28, 4 | P_IT_FL_START, 0, 19 /* Object position (1...13) valid */},
-    {26, 1, 0, 21  /* Capability mismatch */},
-    {25, 1, 0, 3   /* USB comms capable */},
-    {24, 1, 0, 22  /* No USB suspend */},
-    {23, 1, 0, 4   /* Unchunked ext msg support */},
-    {22, 1, 0, 5   /* EPR (EPR mode capable) */},   // can this be != 1 ??
-    {9, 11, 0xff, 29  /* Output voltage (in 25 mV units) [special] */},
-    {0, 7, 5, 23   /* Operating current (in 50 mA units) */},
-
-/* index=66 */
-    {0, 0, 0, 0},       // sentinel
-};
+        sgj_js_nv_o(jsp, jap, nullptr, jo2p);
+    }
+}
 
 // want mapping from PDO's [{B31..B30} * 2 + (obj_pos==1)] to index in
 // pdo_part_a[]. Special case for PPS and AVS which are last 2 entries.
@@ -1719,8 +1756,11 @@ rdo2str(uint32_t a_rdo, pdo_e ref_pdo, sstring & out) noexcept
     case pdo_e::apdo_pps:
         ind = rdo_part_map[2];
         break;
-    case pdo_e::apdo_avs:
+    case pdo_e::apdo_epr_avs:
         ind = rdo_part_map[3];
+        break;
+    case pdo_e::apdo_spr_avs:
+        ind = rdo_part_map[3];  // PD r3.2 v1.0 table 6.16 needs correction
         break;
     default:
         out = "RDO refers to bad PDO type\n";
@@ -1800,10 +1840,14 @@ do_rdo_opt(sstring & o_str, struct opts_t * op) noexcept
             ref_pdo = pdo_e::apdo_pps;
             break;
         case 'A':
-            ref_pdo = pdo_e::apdo_avs;
+        case 'E':
+            ref_pdo = pdo_e::apdo_epr_avs;
+            break;
+        case 'S':
+            ref_pdo = pdo_e::apdo_spr_avs;
             break;
         default:
-            print_err(-1, "--rdo=<rdo>,REF expects F, B, V, P or A\n");
+            print_err(-1, "--rdo=<rdo>,REF expects F, B, V, P, A, E or S\n");
             return 1;
         }
     } else {
@@ -1828,6 +1872,7 @@ primary_scan(struct opts_t * op) noexcept
     if (sz > 1) {
         std::ranges::sort(op->tc_de_v);
         // assume, for example, "port3" precedes "port3-partner" after sort
+        // sort order example using match string: p0, p0p, p1, p2, p2p
 
         tc_dir_elem * prev_elemp = nullptr;
         [[maybe_unused]] int b_ind { };
@@ -1860,6 +1905,10 @@ primary_scan(struct opts_t * op) noexcept
                 if (k > 0) {
                     bool ddir = op->do_data_dir;
                     prev_elemp->partner_ind_ = k;
+                    elemp->partner_ind_ = k - 1;
+                    elemp->source_sink_known_ = prev_elemp->source_sink_known_;
+                    if (prev_elemp->source_sink_known_)
+                        elemp->is_source_ = ! prev_elemp->is_source_;
                     elemp->data_role_known_ = prev_elemp->data_role_known_;
                     if (elemp->data_role_known_)
                         elemp->is_host_ = ! prev_elemp->is_host_;
@@ -2304,6 +2353,11 @@ main(int argc, char * argv[])
     res = primary_scan(op);
     if (res)
         return res;
+
+    if (jsp->pr_as_json) {
+        jo2p = sgj_named_subobject_r(jsp, jop, lsucpd_jn_sn);
+        do_my_join(op, jo2p);
+    }
 
     if (filter_for_port || filter_for_pd) {
         do_filter(filter_for_port, filter_for_pd, op, jop);

@@ -8,5 +8,5 @@ Standards-Version: 3.6.2.1
 Package: lsucpd
 Architecture: any
 Depends: ${shlibs:Depends}
-Description: examine Linux syfs pseudo file system (e.g. under /sys )
+Description: examine Linux sysfs pseudo file system (e.g. under /sys )
  for information about USB-C Power Delivery.
