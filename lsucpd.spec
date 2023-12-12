@@ -1,12 +1,12 @@
 %define name    lsucpd
-%define version 0.91
+%define version 0.92
 %define release 1
 
 Summary: 	List USB-C Power Delivery ports and partners
 Name: 		%{name}
 Version: 	%{version}
 Release: 	%{release}
-License:	GPL
+License:	BSD-2-Clause
 Group:		Utilities/System
 Source0:	https://sg.danny.cz/scsi/%{name}-%{version}.tar.gz
 Url:		https://sg.danny.cz/scsi/lsurl.html
