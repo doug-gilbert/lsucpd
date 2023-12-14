@@ -9,7 +9,11 @@ version 15 can be supported if the 'libfmt' library is available. On
 Debian/Ubuntu use 'apt install libfmt-dev' to install the libfmt library
 and its associated header file.
 
+The build can either be with autotools or cmake. The cmake build is
+currently experimental.
 
+Autotools
+=========
 To build:
  $ ./autogen.sh
  $ ./configure
@@ -55,5 +59,36 @@ the lsucpd source directory) if all goes well.
 There is a build_debian.sh script in the tarball's top level directory
 that does the above.
 
+
+CMAKE
+=====
+The author is experimenting with cmake with a goal to support _both_
+cmake and autotools. This is a relatively simple project with one
+a feq source files (some C++ the rest C). It requires a C++20 or
+better compiler. There is also a manpage in nroff format. The
+sequence of commands to build and install is:
+    cmake .
+    cmake --build .
+    cmake --install .
+
+The last cmake invocation needs root permissions. 'make clean' does
+the same thing as it does in autotools. There is no 'make distclean'
+so the above sequence leaves a lot of garbage "on the floor".
+
+Rather than the last step (i.e. 'cmake --install . ') this invocation:
+    cpack .
+
+will build a "deb" package and place it in the current directory.
+Root permissions are not required. That package can be installed with:
+    dpkg -i <package>
+and that will require root permissions.
+
+There is no uninstall but after a successful install there is a
+install_manifest.txt file that can be used to remove the files
+installed like this:
+    xargs rm < install_manifest.txt
+
+Suggestions welcome.
+
 Douglas Gilbert
-10 August 2023
+13 December 2023

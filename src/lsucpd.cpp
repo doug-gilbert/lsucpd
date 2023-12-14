@@ -16,7 +16,7 @@
 
 // Initially this utility will assume C++20 or later
 
-static const char * const version_str = "0.92 20231211 [svn: r20]";
+static const char * const version_str = "0.92 20231213 [svn: r21]";
 
 static const char * const my_name { "lsucpd: " };
 
@@ -628,6 +628,7 @@ pr3ser(int vb_ge, const std::string & e1msg,
 void
 pr4ser(int vb_ge, const std::string & e1msg, const std::string & e2msg,
        const char * e3msg /* = nullptr */, const std::error_code & ec)
+       noexcept
 {
     if (vb_ge >= lsucpd_verbose)       // vb_ge==-1 always prints
         return;
@@ -638,7 +639,7 @@ pr4ser(int vb_ge, const std::string & e1msg, const std::string & e2msg,
                   e3msg, ec.message());
     else
         bw::print(stderr, "'{},{}': {}\n", e1msg, e2msg, e3msg);
-} noexcept
+}
 
 #endif
 
