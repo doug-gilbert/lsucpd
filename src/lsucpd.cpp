@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 Douglas Gilbert.
+ * Copyright (c) 2023-2026 Douglas Gilbert.
  * All rights reserved.
  * Use of this source code is governed by a BSD-style
  * license that can be found in the BSD_LICENSE file.
@@ -16,7 +16,7 @@
 
 // Initially this utility will assume C++20 or later
 
-static const char * const version_str = "0.92 20231221 [svn: r22]";
+static const char * const version_str = "0.92 20260325 [svn: r23]";
 
 static const char * const my_name { "lsucpd: " };
 

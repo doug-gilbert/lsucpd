@@ -24,8 +24,21 @@ if ( SOURCE_LOCATION_PRESENT )
     add_definitions ( -DHAVE_SOURCE_LOVATION )
 endif ( SOURCE_LOCATION_PRESENT )
 
-file ( GLOB sourcefiles "src/*.cpp" "src/*.c" ) 
-file ( GLOB headerfiles "src/*.hpp" "src/*.h" ) 
+set ( sourcefiles
+	src/lsucpd.cpp
+	src/sgj_hr_pri_helper.cpp
+	src/sg_json_builder.c
+	src/sg_json.c
+	src/sg_pr2serr.c
+)
+
+set ( headerfiles
+	src/bwprint.hpp
+	src/lsucpd.hpp
+	src/sg_json.h
+	src/sg_json_builder.h
+	src/sg_pr2serr.h
+)
 
 add_executable (lsucpd ${sourcefiles} ${headerfiles} )
 
@@ -41,6 +54,7 @@ install(TARGETS lsucpd RUNTIME DESTINATION bin)
 
 include(GNUInstallDirs)
 file(ARCHIVE_CREATE OUTPUT lsucpd.8.gz PATHS doc/lsucpd.8 FORMAT raw COMPRESSION GZip)
+file(ARCHIVE_CREATE OUTPUT lsucpd_json.8.gz PATHS doc/lsucpd_json.8 FORMAT raw COMPRESSION GZip)
 install(FILES lsucpd.8.gz DESTINATION "${CMAKE_INSTALL_MANDIR}/man8")
 
 

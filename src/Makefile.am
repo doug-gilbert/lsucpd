@@ -46,6 +46,7 @@ AM_CXXFLAGS = -Wall -W -pedantic -std=c++20 $(DBG_CXXFLAGS)
 
 lsucpd_SOURCES =	lsucpd.cpp \
 			lsucpd.hpp \
+			bwprint.hpp \
 			sg_json_builder.h \
 			sg_json_builder.c \
 			sgj_hr_pri_helper.cpp \
@@ -57,4 +58,6 @@ lsucpd_SOURCES =	lsucpd.cpp \
 lsucpd_LDADD = @FMT_LDADD@
 
 distclean-local:
-	rm -rf .deps
+	rm -rf \
+	  .deps \
+	  Makefile.in
