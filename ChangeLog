@@ -1,8 +1,9 @@
 Linux utility for listing USB C Power Delivery information.
 
-Changelog for pre-release lsucpd-0.92 [20231221] [svn: r23]
+Changelog for pre-release lsucpd-0.92 [20260401] [svn: r24]
   - change COPYING file to BSD 2 clause license
   - add experimental cmake support and keep autotools
+  - cleanup artifact files
 
 Changelog for release lsucpd-0.91 [20231207] [svn: r19]
   - add --pdo-snk= and --pdo-src= options to decode PDOs

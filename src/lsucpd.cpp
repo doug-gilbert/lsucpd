@@ -16,7 +16,7 @@
 
 // Initially this utility will assume C++20 or later
 
-static const char * const version_str = "0.92 20260325 [svn: r23]";
+static const char * const version_str = "0.92 20260401 [svn: r24]";
 
 static const char * const my_name { "lsucpd: " };
 
@@ -2278,6 +2278,7 @@ main(int argc, char * argv[])
     }
     if (op->pdo_opt_p) {
         sstring ss;
+
         if (do_pdo_opt(ss, op))
             return 1;
         bw::print("{}", ss);
