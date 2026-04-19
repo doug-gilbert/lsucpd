@@ -1,7 +1,8 @@
 #!/bin/sh
 
-echo "./autogen.sh"
-./autogen.sh
+# Used to call "./autogen.sh" here
+echo "autoreconf -i"
+autoreconf -i
 
 echo "chmod +x debian/rules"
 chmod +x debian/rules

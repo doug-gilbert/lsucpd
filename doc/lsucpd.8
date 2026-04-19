@@ -470,13 +470,25 @@ removes some names, that will be reflected in the plain text and JSON output.
 When USB PD first became available it was handled within the BIOS or Embedded
 Controller with no visibility given to the host Operating System. Only recent
 generations of Intel laptop processors use ACPI to provide USB PD visibility
-via the USB Type-C Connector System Software Interface (UCSI) Specification.
+via the USB Type\-C Connector System Software Interface (UCSI) Specification.
 Capability data is available but on the author's laptop, RDO values are
 incorrectly reported. The most recent, accepted Request Data Object (RDO)
 is required to know the current PD contract and which end sent it. The Linux
 kernel power_supply sysfs objects still don't seem to have a way to
 represent "Dual Role Power" (DRP) which is the concepts of the power source
 and sink switching roles, potentially with no power delivery interruption.
+.SH NOTES
+This utility looks for a specific structure in the Linux sysfs pseudo file
+system. Over time more USB PD specific information might be added. For
+example as of Linux kernel 7.0.0 (April 2026) there is no sysfs reporting
+of epr_mode_capable (EprModeCapable in camel case). That attribute was
+introduced in USB PD 3.1 (May 2021). Currently this utility doesn't look
+for epr_mode_capable because it is not there (and should be after 5 years),
+but at some stage it will appear. To find attributes like that a more
+general purpose utility like ls_name_value (actually it's a bash script)
+might help. ls_name_value data\-mines directories up to a depth of 2 showing
+a sanitized view of the contents of all regular files found. It also shows
+symlinks and their targets which make navigating sysfs a bit like a maze.
 .SH AUTHOR
 Written by Doug Gilbert
 .SH "REPORTING BUGS"
@@ -491,10 +503,11 @@ Copyright \(co 2023\-2026 Douglas Gilbert
 This software is distributed under the BSD\-2\-Clause license.  There is NO
 warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 .SH "SEE ALSO"
-.B lsucpd_json(lsucpd)
+.B lsucpd_json(a lsucpd manpage)
 .B lspci
 .B lsusb
 .B lsblk
 .B lsscsi(lsscsi)
+.B lsscsi(ls_name_value)
 .B clone_pseudo_fs(clone_pseudo_fs, github)
 .B lstypec(github libtypec)

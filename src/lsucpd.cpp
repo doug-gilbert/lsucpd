@@ -16,7 +16,7 @@
 
 // Initially this utility will assume C++20 or later
 
-static const char * const version_str = "0.92 20260401 [svn: r24]";
+static const char * const version_str = "0.92 20260418 [svn: r25]";
 
 static const char * const my_name { "lsucpd: " };
 
@@ -52,13 +52,17 @@ static const char * const my_name { "lsucpd: " };
  *    absolute path: a path that starts with '/'
  *    canonical path: an absolute path that contains no symlinks and
  *                    no specials (i.e. "." and "..")
+ *                    also known as the "physical" path as in the
+ *                    command 'pwd --physical'
  *    symlink: a symbolic link that often breaks the otherwise hierarchial
- *             nature of a file system, so they are evil
+ *             nature of a file system, so they are evil ...
  *    symlink target: the destination of the symlink: a file, more often
  *                    a directory, may not even exist
  *    dangling or hanging symlink: one whose target does not exist
- *    link name of symlink: where the symlink actually resides, accessed
- *                          by the readlink(2) system call.
+ *    link name of symlink: where the symlink actually resides, when this
+ *                          is given to the readlink(2) system call it
+ *                          yields the corresponding symlink target.
+ *    UCSI (ucsi): Usb type-C connector system Software Interface
  *
  * Each file (including directories) has a unique canonical path.
  *
@@ -1864,7 +1868,7 @@ do_rdo_opt(sstring & o_str, struct opts_t * op) noexcept
  * ascending order so that port<m>-partner entry will appear immediately
  * after the port<m>. Build a summary map [port_num->summary_string]. */
 static int
-primary_scan(struct opts_t * op) noexcept
+primary_scan(bool ucsi_psup_possible, struct opts_t * op) noexcept
 {
     size_t sz { op->tc_de_v.size() };
     tc_dir_elem * elemp { };
@@ -1879,8 +1883,11 @@ primary_scan(struct opts_t * op) noexcept
         [[maybe_unused]] int b_ind { };
         arr_of_ch<32> c;
 
+// xxxxxxxxxxx  Testing: turn on (was 0)
 #if 0
         if (ucsi_psup_possible) {
+            std::error_code ecc { };
+
             for (fs::directory_iterator itr(sc_powsup_pt, dir_opt, ecc);
                  (! ecc) && itr != end_itr;
                  itr.increment(ecc) ) {
@@ -1890,9 +1897,14 @@ primary_scan(struct opts_t * op) noexcept
 // xxxxxxxxxxx  Would like symlink from pd object to corresponding
 // xxxxxxxxxxx  power_supply. Also having the active RDO (in hex ?) would
 // xxxxxxxxxxx  be extremely useful.
+pr2serr("%s: pt: %s\n", __func__, filename_as_str(pt).c_str());
             }
             if (ecc)
                 pr3ser(-1, sc_powsup_pt, "was scanning when failed", ecc);
+        }
+#else
+        if (ucsi_psup_possible) {
+	    ;	/* keep compiler quiet */
         }
 #endif
 
@@ -2352,7 +2364,7 @@ main(int argc, char * argv[])
         if (ec)
             return 1;
     }
-    res = primary_scan(op);
+    res = primary_scan(ucsi_psup_possible, op);
     if (res)
         return res;
 
