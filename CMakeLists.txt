@@ -1,4 +1,4 @@
-cmake_minimum_required ( VERSION 3.5 )
+cmake_minimum_required ( VERSION 3.10 )
 
 project(lsucpd VERSION 0.91.9)
 # Use version number: x.y.9 to indicate pre-release of x.(y+1) 
@@ -56,10 +56,16 @@ include(GNUInstallDirs)
 file(ARCHIVE_CREATE OUTPUT lsucpd.8.gz PATHS doc/lsucpd.8 FORMAT raw COMPRESSION GZip)
 file(ARCHIVE_CREATE OUTPUT lsucpd_json.8.gz PATHS doc/lsucpd_json.8 FORMAT raw COMPRESSION GZip)
 install(FILES lsucpd.8.gz DESTINATION "${CMAKE_INSTALL_MANDIR}/man8")
+install(FILES lsucpd_json.8.gz DESTINATION "${CMAKE_INSTALL_MANDIR}/man8")
+install(FILES ChangeLog DESTINATION "${CMAKE_INSTALL_DOCDIR}")
+install(FILES README DESTINATION "${CMAKE_INSTALL_DOCDIR}")
+install(FILES INSTALL DESTINATION "${CMAKE_INSTALL_DOCDIR}")
+install(FILES doc/usb_pd_pdo_rdo.pdf DESTINATION "${CMAKE_INSTALL_DOCDIR}")
 
 
 set(CPACK_PROJECT_NAME ${PROJECT_NAME})
 set(CPACK_PROJECT_VERSION ${PROJECT_VERSION})
 SET(CPACK_GENERATOR "DEB")
-SET(CPACK_DEBIAN_PACKAGE_MAINTAINER "dpg") #required
+SET(CPACK_DEBIAN_PACKAGE_MAINTAINER "Douglas Gilbert") #required
+SET(CPACK_DEBIAN_PACKAGE_SECTION "admin")
 include(CPack)

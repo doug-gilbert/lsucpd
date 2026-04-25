@@ -11,10 +11,17 @@ lsucpd \- list USB\-C Power Delivery objects
 .SH DESCRIPTION
 .\" Add any additional description here
 The first part of this utility's name (i.e. "ls") comes from the Unix
-command name to list file names (including directories). The
-trailing "ucpd" is an abbreviation of "Usb type C Power Delivery". It joins
-a growing family of Linux "ls" utilities such as lsblk, lscpu, lsfd, lsmem,
-lsof, lspci, lsscsi and lsusb.
+command name to list file names. The trailing "ucpd" is an abbreviation
+of "Usb type C Power Delivery". The default action is to show one USB-C
+port (port<n> where <n> starts at 0) per line. If any of those ports are
+attached (e.g. via a USB-C cable) to a "partner" then that is shown like
+this:
+    port1 [pd1]  <<====  partner [pd2]
+.br
+where the "<<====" shows the direction power is flowing. In this case
+partner [pd2] is a power supply powering a laptop via port1 [pd1].
+This utility joins a growing family of Linux "ls" utilities such as
+lsblk, lscpu, lsfd, lsmem, lsof, lspci, lsscsi and lsusb.
 .PP
 USB Power Delivery is often associated with the 24 pin USB Type C connector
 typically shortened to USB\-C. Sysfs in Linux has two classes that cover
