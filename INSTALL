@@ -75,15 +75,19 @@ sequence of commands to build and install is:
 The last cmake invocation needs root permissions. 'make clean' does
 the same thing as it does in autotools. There is no 'make distclean'
 so the above sequence leaves a lot of garbage "on the floor".
+The ./cmake_del_artifacts.sh script cleans up most of that.
 To build static executable(s) instead of 'cmake .' use
     cmake . -DBUILD_SHARED_LIBS=OFF
 
 Rather than the last step (i.e. 'cmake --install . ') this invocation:
     cpack .
 
-will build a "deb" package and place it in the current directory.
-Root permissions are not required. That package can be installed with:
-    dpkg -i <package>
+will build a "deb" and a "rpm" package and place them in the current
+directory. Root permissions are not required. The package that is
+appropriate for the machine's Linux distribution can be installed with:
+    dpkg -i <package>.deb
+or
+    rpm -iv <package>.rpm
 and that will require root permissions.
 
 There is no uninstall but after a successful install there is a
@@ -94,4 +98,4 @@ installed like this:
 Suggestions welcome.
 
 Douglas Gilbert
-22nd April 2026
+27th April 2026

@@ -16,7 +16,7 @@
 
 // Initially this utility will assume C++20 or later
 
-static const char * const version_str = "0.92 20260426 [svn: r27]";
+static const char * const version_str = "0.92 20260427 [svn: r28]";
 
 static const char * const my_name { "lsucpd: " };
 
@@ -1904,7 +1904,7 @@ pr2serr("%s: pt: %s\n", __func__, filename_as_str(pt).c_str());
         }
 #else
         if (ucsi_psup_possible) {
-	    ;	/* keep compiler quiet */
+            ;   /* keep compiler quiet */
         }
 #endif
 
