@@ -10,8 +10,7 @@ version 15 can be supported if the 'libfmt' library is available. On
 Debian/Ubuntu use 'apt install libfmt-dev' to install the libfmt library
 and its associated header file.
 
-The build can either be with autotools or cmake. The cmake build is
-currently experimental.
+The build can either be with autotools or cmake.
 
 Autotools
 =========
@@ -63,11 +62,10 @@ that does the above.
 
 CMAKE
 =====
-The author is experimenting with cmake with a goal to support _both_
-cmake and autotools. This is a relatively simple project with one
-a feq source files (some C++ the rest C). It requires a C++20 or
-better compiler. There is also a manpage in nroff format. The
-sequence of commands to build and install is:
+The plan is to support both autotools and cmake build systems. This is a
+relatively simple project with only a few source files (some C++ the rest
+C). It requires a C++20 or better compiler. There is also a manpage in
+nroff format. For cmake the sequence of commands to build and install is:
     cmake .
     cmake --build .
     cmake --install .
@@ -98,4 +96,4 @@ installed like this:
 Suggestions welcome.
 
 Douglas Gilbert
-27th April 2026
+5th May 2026

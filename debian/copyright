@@ -1,10 +1,7 @@
-This package was debianized by Matt Taggart <taggart@debian.org> on
-Wed,  2 Feb 2005 00:27:11 -0800.
-
                         BSD 2 clause license
                         ====================
 
-Copyright (c) 2005-2023 Douglas Gilbert
+Copyright (c) 2023-2026 Douglas Gilbert
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
@@ -28,3 +25,4 @@ CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
 ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 POSSIBILITY OF SUCH DAMAGE.
 
+SPDX-License-Identifier: BSD-2-Clause

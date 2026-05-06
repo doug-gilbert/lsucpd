@@ -1,4 +1,4 @@
-.TH LSUCPD "8" "April 2026" "lsucpd\-0.92" LSUCPD
+.TH LSUCPD "8" "May 2026" "lsucpd\-0.92" LSUCPD
 .SH NAME
 lsucpd \- list USB\-C Power Delivery objects
 .SH SYNOPSIS
@@ -28,27 +28,35 @@ typically shortened to USB\-C. Sysfs in Linux has two classes that cover
 this facility: /sys/class/typec and /sys/class/usb_power_delivery. The
 /sys/class/typec directory contains 'port<n>' and 'port<n>\-partner' entries.
 A "port" is a USB type C endpoint and with the common USB\-C male\-to\-male
-cabling, a port corresponds to female USB\-C connectors also knows as
-receptacles. Modern laptops often have two or more female USB\-C receptacles
+cabling, a port corresponds to a female USB\-C connector also knows as
+receptacle. Modern laptops often have two or more female USB\-C receptacles
 which Linux will number: port0, port1, etc. In the future entries in the
 /sys/class/typec/port0/physical_location directory should accurately describe
-where port 0 is (but not in lk 6.4).
+where port 0 is.
 .PP
 Strictly speaking USB PD refers to use of a computer protocol (whose
-transport is known as BMC) along a CC line that enables a maximum power of
-100 Watts (20 Volts at 5 Amps) in what is now called SPR (the Standard Power
-Range). USB PD revision 3.1 increased that maximum with the Extended Power
-Range (EPR) to 240 Watts: 48 Volts at 5 Amps. Notice that is a maximum, and
-many conditions must be met before 240 Watts can be supplied. USB Type C can
-function without USB PD, with the protocol on the CC lines replaced by
-resistors. In this mode Type C can supply a maximum of 5 Volts at 3 Amps (15
-Watts). Many USB\-C devices such as USB flash (memory) keys use non\-PD mode.
+transport is known as BMC) along a CC line (wire) that enables a maximum
+power of 100 Watts (20 Volts at 5 Amps) in what is now called SPR (the
+Standard Power Range). USB PD revision 3.1 increased that maximum with the
+Extended Power Range (EPR) to 240 Watts: 48 Volts at 5 Amps. Notice that is
+a maximum, and many conditions must be met before 240 Watts can be supplied.
+USB Type C can function without USB PD, with the computer protocol on the CC
+line replaced by resistors. In this mode Type C can supply a maximum of 5
+Volts at 3 Amps (15 Watts). Many USB\-C devices such as USB flash (memory)
+keys use that non\-PD mode.
 .PP
-USB PD endpoints are named 'pd<num>' and are found in the
-/sys/class/usb_power_delivery directory. Currently only the source and sink
+USB PD endpoints are named 'pd<num>' in Linux and are found in the
+/sys/class/usb_power_delivery directory. Currently only the PD
+.B source
+also known as the
+.B provider
+and the
+.B sink
+also know as the
+.B consumer
 capabilities (if supported) are listed under each pd<num> directory. Adding
-entries derived from the most recently accepted PD RDO (request data object)
-command would be really helpful.
+entries derived from the most recently accepted PD RDO (request data
+object) command would be helpful.
 .PP
 The default output of this utility is one line per local USB Type C port
 on the host machine. If that port is in use (e.g. connected to a USB\-C power
@@ -63,13 +71,14 @@ A simple example:
 This shows that the Linux machine (e.g. a laptop) has two USB Type C
 receptacles: port0 and port1. Both ports are USB PD capable with endpoints
 named pd0 and pd1 respectively. The fact that port 0 has a partner indicates
-a USB C male to male cable is connected to port 0 and what seems like a power
-adapter at the other end whose endpoint is associated with pd8. sysfs
-indicates power negotiated by the USB PD protocol is flowing in the direction
-of the arrow: from pd8 to pd0. It would be useful to indicate the active
-contract is 20 Volts at a maximum of 4.5 Amps to the right of that line but
-the active RDO (Request Data Object) is not being properly reported in lk 6.4
-series kernels.
+a USB C male to male cable is probably connected to port 0 and what seems
+like a power adapter at the other end whose endpoint is associated with pd8.
+That power supply [pd8] may have a "captive" cable connected permanently
+at the charger end, it makes little difference to USB PD. sysfs indicates
+power negotiated by the USB PD protocol is flowing in the direction of the
+arrow: from pd8 to pd0. It would be useful to indicate the active contract
+is 20 Volts at a maximum of 4.5 Amps to the right of that line but
+the active RDO (Request Data Object) is not being reported yet.
 .PP
 The second line in the example output above shows that nothing is connected
 to port1 but if it was, port1 would report that it can source 5 Volts at
@@ -82,8 +91,8 @@ numeric arguments given then exit. So these options don't depend on sysfs
 or any connected USB\-C devices.
 .PP
 This utility can be categorized as "beta" software, amongst other reasons
-being that USB PD reporting from the Linux kernel (currently lk 6.4) has
-some rough edges (to put it mildly).
+being that USB PD reporting from the Linux kernel has some rough edges
+that are slowly being fixed/improved.
 .SH OPTIONS
 Arguments to long options are mandatory for short options as well. The options
 are arranged in alphabetical order based on the long option name. Hyphenated

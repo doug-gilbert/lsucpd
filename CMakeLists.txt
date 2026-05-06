@@ -4,7 +4,10 @@ project(lsucpd VERSION 0.91.9)
 # Use version number: x.y.9 to indicate pre-release of x.(y+1) 
 # Example: VERSION 0.91.9 is pre-release of 0.92
 
+set ( CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O2 -g" )
+
 option ( BUILD_SHARED_LIBS "Build using shared libraries" ON)
+option ( ENABLE_DEBUG "Turn on debugging (extra warnings)" OFF)
 
 set (CMAKE_CXX_STANDARD 20 )
 set (CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -21,7 +24,7 @@ if ( NOT FORMAT_PRESENT )
 endif ( NOT FORMAT_PRESENT )
 
 if ( SOURCE_LOCATION_PRESENT )
-    add_definitions ( -DHAVE_SOURCE_LOVATION )
+    add_definitions ( -DHAVE_SOURCE_LOCATION )
 endif ( SOURCE_LOCATION_PRESENT )
 
 set ( sourcefiles
@@ -32,15 +35,19 @@ set ( sourcefiles
 	src/sg_pr2serr.c
 )
 
-set ( headerfiles
-	src/bwprint.hpp
-	src/lsucpd.hpp
-	src/sg_json.h
-	src/sg_json_builder.h
-	src/sg_pr2serr.h
-)
+add_executable (lsucpd ${sourcefiles} )
 
-add_executable (lsucpd ${sourcefiles} ${headerfiles} )
+target_compile_definitions(lsucpd PRIVATE _LARGEFILE64_SOURCE _FILE_OFFSET_BITS=64)
+target_compile_options(lsucpd PRIVATE -Wall -W)
+target_include_directories(lsucpd PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
+if ( ENABLE_DEBUG )
+  target_compile_definitions(lsucpd PRIVATE DEBUG)
+  target_compile_options(lsucpd PRIVATE
+    -Wextra -Wmisleading-indentation -Wduplicated-cond -Wlogical-op
+    -Wnull-dereference -Wshadow -Wunused -Wsizeof-array-argument
+    -Wduplicated-branches -Wparentheses)
+endif ( ENABLE_DEBUG )
 
 if ( BUILD_SHARED_LIBS )
     MESSAGE( ">> Build using shared libraries (default)" )
@@ -66,10 +73,11 @@ install(FILES doc/usb_pd_pdo_rdo.pdf DESTINATION "${CMAKE_INSTALL_DOCDIR}")
 set(CPACK_PROJECT_NAME ${PROJECT_NAME})
 set(CPACK_PROJECT_VERSION ${PROJECT_VERSION})
 SET(CPACK_GENERATOR "DEB;RPM")
-SET(CPACK_DEBIAN_PACKAGE_MAINTAINER "Douglas Gilbert") #required
+SET(CPACK_DEBIAN_PACKAGE_MAINTAINER "Douglas Gilbert") 
 SET(CPACK_DEBIAN_PACKAGE_SECTION "admin")
 SET(CPACK_RPM_PACKAGE_DESCRIPTION "List USB-C ports and Power Delivery (PD) interfaces")
 SET(CPACK_RPM_PACKAGE_LICENSE "BSD-2-clause")
 SET(CPACK_RPM_PACKAGE_VENDOR "Douglas Gilbert")
 
 include(CPack)
+include(CTest)

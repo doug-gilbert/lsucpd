@@ -329,6 +329,3 @@ void json_builder_free (json_value *);
 #endif
 
 #endif		/* SG_JSON_BUILDER_H */
-
-
-

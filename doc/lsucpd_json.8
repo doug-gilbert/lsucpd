@@ -1,13 +1,13 @@
-.TH LSUCPD_JSON "8" "April 2026" "lsucpd\-0.92" LSUCPD
+.TH LSUCPD_JSON "8" "May 2026" "lsucpd\-0.92" LSUCPD
 .SH NAME
 lsucpd_json \- JSON output options for the lsucpd utility
 .SH SYNOPSIS
 .B lsucpd
 \fI\-\-json[=JO]\fR [\fI\-\-js\-file=JFN\fR] [\fIOTHER_OPTIONS\fR]
 .SH DESCRIPTION
-Uses information in sysfs (Linux kernel series 2.6 and later) to list SCSI
-devices (or hosts) currently attached to the system. Many non\-SCSI storage
-devices (but not all) used the SCSI subsystem in Linux.
+This page describes the JSON specific options for the lsucpd utility.
+These options control the way USB-C ports and associated USB Power
+Delivery (PD) endpoints are processed and output in JSON format.
 .PP
 JavaScript Object Notation (JSON) is an open standard file format that can be
 used for data exchange between programs including across a network. See
@@ -18,13 +18,6 @@ data types: string, integer, boolean and null. Its other data types are JSON
 object and JSON array. The json\-builder library uses the
 SPDX\-License\-Identifier: BSD\-2\-Clause which is the same license as lsucpd.
 .PP
-The json\-builder library is relatively lightweight (700 lines of C code) and
-is 'hidden' fully within the sg3_utils library which this utility shares with
-the sg3_utils package. The author has modified the json\-builder header to
-include what is needed from the json\-parser header so that only the builder
-and not the parser are built. The parser could be added later, but currently
-there seems to be no need for it.
-.PP
 This utility uses the 'snake_case' convention for JSON property/object names:
 all in lower case letters or numerals with individual words joined with a
 single underscore (e.g. "starting_lba"). There should be no leading or
@@ -32,20 +25,6 @@ trailing underscore characters. The lsucpd utility is essentially
 data\-mining in Linux's sysfs pseudo file system. Conveniently the naming
 convention used in the sysfs pseudo file system is also the 'snake_case'
 convention.
-.PP
-In the plain text, "single line per device" mode each line of lsucpd output
-starts with a lsucpd_locator. It is surrounded by square brackets and has a
-four element tuple with colon as a separator. For SCSI/ATA devices, its
-four elements are "h" for host_id, "c" for controller_id, "t" for target_id
-and "l" for LUN (Logical Unit Number). For NVMe devices the first element is
-the letter "N", followed by the char device node minor number, followed by
-the controller_id and finally the namespace_id. Many of these "id"s are
-discovered/enuerated by Linux, starting with 0 for the first found. The
-LUN and namespace_id are specified by the storage device and in the case
-of NVMe, the lowest namespace id is 1. In the JSON output, when devices
-or hosts/controllers are being listed, one of the first properties output
-is named "lscsi_locator" and it value is the string (including the
-surrounding square brackets) described in this paragraph.
 .PP
 The user interface to JSON functionality in this utility is heavily based on
 what has been done by Christian Franke and others in smartctl, a utility in

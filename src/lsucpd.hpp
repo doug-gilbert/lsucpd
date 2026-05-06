@@ -144,6 +144,6 @@ struct arr_of_ch {
 	return N;	// this flags there is an issue
     }
 };
-    
+
 
 #endif          /* end of #ifndef LSUCPD_HPP */

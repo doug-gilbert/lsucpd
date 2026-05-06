@@ -108,7 +108,7 @@ sg_scn3pr(char * fcp, int fcp_len, int off, const char * fmt, ...)
 #endif
     return (n < cp_max_len) ? n : (cp_max_len - 1);
 }
- 
+
 
 // Following borrowed from sg3_utils lib/sg_lib.c
 
@@ -452,4 +452,3 @@ sg_get_llnum_nomult(const char * buf)
         res = sscanf(buf, "%" SCNd64 "", &num);
     return (1 == res) ? num : -1;
 }
-

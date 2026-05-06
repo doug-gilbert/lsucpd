@@ -16,7 +16,7 @@
 
 // Initially this utility will assume C++20 or later
 
-static const char * const version_str = "0.92 20260427 [svn: r28]";
+static const char * const version_str = "0.92 20260505 [svn: r29]";
 
 static const char * const my_name { "lsucpd: " };
 
@@ -1973,7 +1973,7 @@ pr2serr("%s: pt: %s\n", __func__, filename_as_str(pt).c_str());
         }
     } else if (sz == 1) {
         int b_ind { };
-        arr_of_ch<32> c;
+        arr_of_ch<32> c { };
 
         elemp = &op->tc_de_v[0];
         int j = elemp->pd_inum_;
