@@ -2,10 +2,8 @@
 #define SG_PR2SERR_H
 
 /*
- * Copyright (c) 2004-2023 Douglas Gilbert.
+ * Copyright (c) 2004-2026 Douglas Gilbert.
  * All rights reserved.
- * Use of this source code is governed by a BSD-style
- * license that can be found in the BSD_LICENSE file.
  *
  * SPDX-License-Identifier: BSD-2-Clause
  */
@@ -99,6 +97,16 @@ int64_t sg_get_llnum(const char * buf);
  * a whitespace or newline as terminator. Only decimal numbers can represent
  * negative numbers and '-1' must be treated separately. */
 int64_t sg_get_llnum_nomult(const char * buf);
+
+/* Safer form of strncpy() modelled on Linux kernel strscpy() function.
+ * Returns 0 if count is 1 or less (notice count is an int so that includes
+ * negative values) and doesn't touch dest. Otherwise copies up to count-1
+ * characters from src to dest; stopping if a null char has just been
+ * copied. If count-1 copies are reached, a null character is written to
+ * dest. So in the case where count is 1, a null character is written to
+ * dest[0] and 0 is returned. dest must be large enough to accept count
+ * characters. Returns characters copied excluding trailing null char. */
+int sg_strscpy(char * dest, const char * src, int count);
 
 #ifdef __cplusplus
 }

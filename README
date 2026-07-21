@@ -217,9 +217,9 @@ specific to this package are:
   --enable-debug          Turn on debugging
 
 The build sequence is:
-  ./autogen.sh ; ./configure ; make ; make install
+    # ./autogen.sh ; ./configure ; make ; make install
 or
-  ./bootstrap ; ./configure ; make ; make install
+    # ./bootstrap ; ./configure ; make ; make install
 
 Note that the final 'make install' will usually require root permissions
 and will place binaries in the /usr/local/bin directory.

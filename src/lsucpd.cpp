@@ -1,8 +1,6 @@
 /*
  * Copyright (c) 2023-2026 Douglas Gilbert.
  * All rights reserved.
- * Use of this source code is governed by a BSD-style
- * license that can be found in the BSD_LICENSE file.
  *
  * SPDX-License-Identifier: BSD-2-Clause
  */
@@ -16,7 +14,7 @@
 
 // Initially this utility will assume C++20 or later
 
-static const char * const version_str = "0.92 20260608 [svn: r31]";
+static const char * const version_str = "0.92 20260711 [svn: r32]";
 
 static const char * const my_name { "lsucpd: " };
 
@@ -2220,7 +2218,7 @@ cl_parse(struct opts_t * op, int argc, char * argv[])
             op->filter_pd_v.push_back(oip);
         else {
             memset(b.d(), 0, 32);
-            strncpy(b.d(), oip, (ln < b.sz() ? ln : (b.sz() - 1)));
+            sg_strscpy(b.d(), oip, (ln < b.sz() ? ln : b.sz()));
             if (ln > 4) {       // also accept 'port1' or 'port3p'
                 if (0 == memcmp(b.d(), "port", 4)) {
                     memmove(b.d() + 1, b.d() + 4, 3);

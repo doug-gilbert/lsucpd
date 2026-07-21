@@ -15,12 +15,12 @@ The build can either be with autotools or cmake.
 Autotools
 =========
 To build:
- $ ./autogen.sh
- $ ./configure
- $ make
+    # ./autogen.sh
+    # ./configure
+    # make
 
 To install call:
- $ make install
+    # make install
 This will most likely need superuser privilege. The executable is placed
 in the /usr/local/bin directory while the man page is placed in the
 /usr/local/man/man8 directory. The install directory are controlled by
@@ -28,14 +28,14 @@ the PREFIX variable in the Makefile. To install executable in the /usr/bin
 directory use './configure --prefix=/usr ' instead.
 
 To uninstall the executable and man page call:
- $ make uninstall
+    # make uninstall
 
 To clean out object and executable files from the working directory call:
- $ make clean
+    # make clean
 
 To clean out prior to making a tarball (so ./configure needs to be run
 on the target system):
- $ make distclean
+    # make distclean
 
 Rpms are also available. A lsucpd.spec file is included in the tarball
 to facilitate building rpms. One way of doing this on a RedHat system
@@ -52,8 +52,8 @@ successful that will deposit the binary rpm in the
 
 To build a Linux debian "deb" (binary) package, first untar the tarball,
 then change directory to the top level within the lsucpd source. Then:
- # chmod +x debian/rules
- # dpkg-buildpackage -b -rfakeroot
+    # chmod +x debian/rules
+    # dpkg-buildpackage -b -rfakeroot
 The binary deb packages will be placed in the parent directory (of
 the lsucpd source directory) if all goes well.
 There is a build_debian.sh script in the tarball's top level directory
@@ -66,34 +66,34 @@ The plan is to support both autotools and cmake build systems. This is a
 relatively simple project with only a few source files (some C++ the rest
 C). It requires a C++20 or better compiler. There is also a manpage in
 nroff format. For cmake the sequence of commands to build and install is:
-    cmake .
-    cmake --build .
-    cmake --install .
+    # cmake .
+    # cmake --build .
+    # cmake --install .
 
 The last cmake invocation needs root permissions. 'make clean' does
 the same thing as it does in autotools. There is no 'make distclean'
 so the above sequence leaves a lot of garbage "on the floor".
 The ./cmake_del_artifacts.sh script cleans up most of that.
 To build static executable(s) instead of 'cmake .' use
-    cmake . -DBUILD_SHARED_LIBS=OFF
+    # cmake . -DBUILD_SHARED_LIBS=OFF
 
 Rather than the last step (i.e. 'cmake --install . ') this invocation:
-    cpack .
+    # cpack .
 
 will build a "deb" and a "rpm" package and place them in the current
 directory. Root permissions are not required. The package that is
 appropriate for the machine's Linux distribution can be installed with:
-    dpkg -i <package>.deb
+    # dpkg -i <package>.deb
 or
-    rpm -iv <package>.rpm
+    # rpm -iv <package>.rpm
 and that will require root permissions.
 
 There is no uninstall but after a successful install there is a
 install_manifest.txt file that can be used to remove the files
 installed like this:
-    xargs rm < install_manifest.txt
+    # xargs rm < install_manifest.txt
 
 Suggestions welcome.
 
 Douglas Gilbert
-5th May 2026
+20th June 2026
