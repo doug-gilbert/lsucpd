@@ -1,8 +1,8 @@
-lsucpd (0.91-9.20260721) unstable; urgency=low
+lsucpd (0.91-9.20260806) unstable; urgency=low
 
   * new upstream version, change build from cdbs back to debhelper
 
- -- Douglas Gilbert <dgilbert@interlog.com>  Tue, 21 Jul 2026 18:00:00 -0400
+ -- Douglas Gilbert <dgilbert@interlog.com>  Thu, 06 Aug 2026 12:00:00 -0400
 
 lsucpd (0.91-0.1) unstable; urgency=low
 

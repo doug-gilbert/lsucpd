@@ -11,8 +11,9 @@ set ( sourcefiles
 
 add_executable (lsucpd ${sourcefiles} )
 
-target_compile_definitions(lsucpd PRIVATE _LARGEFILE64_SOURCE _FILE_OFFSET_BITS=64)
-target_compile_options(lsucpd PRIVATE -Wall -W)
+# Next two compile_options definitions done in parent CMakeLists.txt
+## target_compile_definitions(lsucpd PRIVATE _LARGEFILE64_SOURCE _FILE_OFFSET_BITS=64)
+## target_compile_options(lsucpd PRIVATE -Wall -W)
 target_include_directories(lsucpd PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_include_directories(lsucpd PRIVATE ${CMAKE_BINARY_DIR})
 
@@ -22,6 +23,10 @@ if ( ENABLE_DEBUG )
     -Wextra -Wmisleading-indentation -Wduplicated-cond -Wlogical-op
     -Wnull-dereference -Wshadow -Wunused -Wsizeof-array-argument
     -Wduplicated-branches -Wparentheses)
+#  target_compile_options(lsucpd $<COMPILE_LANGUAGE:C> C PRIVATE
+#    -Wextra -Wmisleading-indentation -Wduplicated-cond -Wlogical-op
+#    -Wnull-dereference -Wshadow -Wunused -Wsizeof-array-argument
+#    -Wduplicated-branches -Wjump-misses-init -Wparentheses)
 endif ( ENABLE_DEBUG )
 
 if ( BUILD_SHARED_LIBS )

@@ -1,6 +1,6 @@
 Linux utility for listing USB C Power Delivery information.
 
-Changelog for pre-release lsucpd-0.92 [20260721] [svn: r32]
+Changelog for pre-release lsucpd-0.92 [20260806] [svn: r33]
   - change COPYING file to BSD 2 clause license
   - import sg_json.[hc] and sg_pr2serr.[hc] from sg3_utils
     svn revision 1127

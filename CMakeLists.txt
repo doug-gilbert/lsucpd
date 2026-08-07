@@ -4,11 +4,13 @@ project(lsucpd VERSION 0.91.9 LANGUAGES C CXX)
 # Use version number: x.y.9 to indicate pre-release of x.(y+1) 
 # Example: VERSION 0.91.9 is pre-release of 0.92
 
-set ( CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O2 -g -Wall -W -D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64 -DHAVE_CONFIG_H" )
+set ( CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -W" )
 set (CMAKE_CXX_STANDARD 20 )
 set (CMAKE_CXX_STANDARD_REQUIRED ON)
 set (CMAKE_CXX_EXTENSIONS OFF)
-set ( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O2 -g -Wall -W -D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64 -DHAVE_CONFIG_H" )
+set ( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -W" )
+
+add_compile_definitions ( _LARGEFILE64_SOURCE _FILE_OFFSET_BITS=64 HAVE_CONFIG_H )
 
 string(TIMESTAMP BUILD_TIME "%Y%m%d %H:%M:%S")
 
