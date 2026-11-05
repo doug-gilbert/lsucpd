@@ -1,8 +1,8 @@
-#ifndef LSUCPD_HPP
-#define LSUCPD_HPP
+#ifndef LSUCPD_H
+#define LSUCPD_H
 
 /*
- * Copyright (c) 2023 Douglas Gilbert.
+ * Copyright (c) 2023-2026 Douglas Gilbert.
  * All rights reserved.
  * Use of this source code is governed by a BSD-style
  * license that can be found in the BSD_LICENSE file.
@@ -32,6 +32,89 @@
 
 #include "sg_pr2serr.h"
 #include "sg_json.h"
+
+// Assume this is initialized with '{ }' which will initialize d_[N] to
+// all zeros. It can be used with C functions like snprintf() and similar.
+template <size_t N>
+struct Arr_of_ch {
+    char d_[N];
+
+    char & operator[](size_t k) { return d_[k]; }
+    char operator[](size_t k) const { return d_[k]; }
+
+    char at(size_t k) { if (k < N) return d_[k]; else return 0; }
+
+    size_t size() const { return N; }
+    size_t sz() const { return N; }
+
+    char * begin() { return d_; }
+    const char * begin() const { return d_; }
+    char * data() { return d_; }
+    const char * data() const { return d_; }
+    char * d() { return d_; }
+    const char * d() const { return d_; }
+
+    char * end() { return d_ + N; }
+    const char * end() const { return d_ + N; }
+
+    void zero() { memset(d_, 0, N); }
+
+    // If array is zero-terminated then k < N, else k == N
+    size_t strlen() const {
+        for (size_t k { }; k < N; ++k) {
+            if ('\0' == d_[k])
+                return k;
+        }
+        return N;       // this flags there is an issue
+    }
+};
+
+/* holds a char array with N elements. It is then a wrapper around the C
+ * call:        b_ind += sg_scn3pr(arr_.d(), N, b_ind, fmt, args...);
+ * which is designed to be called multiple times and if called often enough,
+ * will not add anymore chars and full() will return true. Should never
+ * write outside that char array which will always be nul terminated. */
+template <size_t N>    /* assume N > 0 */
+struct SafePrintfWrapper {
+    SafePrintfWrapper() { }
+
+    template<typename... Args>
+    bool scnpr(const char * fmt, Args&&... args) noexcept {
+        int tmp_arr_ind { arr_ind };
+
+        arr_ind += sg_scn3pr(arr_.d(), N, arr_ind, fmt, args...);
+        return arr_ind > tmp_arr_ind;
+    }
+
+    template<typename... Args>
+    bool scnpr_s(const std::string &fmt_s, Args&&... args) noexcept {
+        int tmp_arr_ind { arr_ind };
+
+        arr_ind += sg_scn3pr(arr_.d(), N, arr_ind, fmt_s.c_str(), args...);
+        return arr_ind > tmp_arr_ind;
+    }
+
+    const char * c_str() const { return arr_.d(); }
+    const char * cs() const { return arr_.d(); }
+
+    void clear() { arr_ind = 0; arr_[0] = '\0'; }
+
+    // Returns pointer existing buffer and zero index. The next "write"
+    // to this object (e.g. a_spw.scnpr("%s", "hello world") ) will
+    // overwrite the buffer starting from arr_[0] so the returned pointer
+    // should be used _before_ any such write operation.
+    const char * cz() { arr_ind = 0; return arr_.d(); }
+
+    bool full() const { return arr_ind + 1 >= (int)N; }
+
+    int index() const { return arr_ind; }
+
+private:
+
+    Arr_of_ch<N> arr_;
+
+    int arr_ind { };
+};
 
 #ifdef HAVE_SOURCE_LOCATION
 void
@@ -112,38 +195,4 @@ constexpr void sgj_hr_pri(sgj_state * jsp, const std::string_view str_fmt,
     }
 }
 
-// Assume this is initialized with '{ }' and is used with C functions like
-// snprintf() and similar.
-template <size_t N>
-struct arr_of_ch {
-    char d_[N];
-
-    char & operator[](size_t k) { return d_[k]; }
-    char operator[](size_t k) const { return d_[k]; }
-
-    char at(size_t k) { if (k < N) return d_[k]; else return 0; }
-
-    size_t size() const { return N; }
-    size_t sz() const { return N; }
-
-    char * begin() { return d_; }
-    const char * begin() const { return d_; }
-    char * data() { return d_; }
-    const char * data() const { return d_; }
-    char * d() { return d_; }
-    const char * d() const { return d_; }
-
-    char * end() { return d_ + N; }
-    const char * end() const { return d_ + N; }
-
-    size_t strlen() const {
-	for (size_t k { }; k < N; ++k) {
-	    if ('\0' == d_[k])
-		return k;
-	}
-	return N;	// this flags there is an issue
-    }
-};
-
-
-#endif          /* end of #ifndef LSUCPD_HPP */
+#endif          /* end of #ifndef LSUCPD_H */

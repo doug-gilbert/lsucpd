@@ -5,8 +5,8 @@
 Introduction
 ------------
 This utility belongs to the "ls*" family of utilities found in Linux whose
-names derive from the Unix ls utility (command) for listing files and
-directories. In the case of lsucpd, the "ucpd" is an abbreviation for USB-C
+names are derived from the Unix ls utility (command) for listing files and
+directories. In the case of lsucpd, the "ucpd" is an abbreviation for Usb-C
 Power Delivery (PD) which is optional on USB Type-C interconnects. A typical
 USB-C interconnect consists of a power adapter (e.g. an AC 65 Watt power
 adapter) and a consumer of power (e.g. a laptop). Taking those examples,
@@ -19,11 +19,11 @@ connector on a laptop) with one line output for each local port. Those local
 ports are named "port<n>" where <n> is an integer starting at 0. Although
 Linux does not guarantee it, the local port numbers are observed to be stable
 from one boot to the next. For those local ports connected via a cable to a
-remote device there will most likely be a "port<n>-partner" which is
-shortened to "partner" as the "port<n>" part would otherwise be repeated.
-Not all USB-C ports support the PD protocol, but for those that do, a
-"pd<n>" is shown in square brackets immediately to the right of the port
-it is associated with. For example:
+remote device (or directly connected without a cable) there will most likely
+be a "port<n>-partner" which is shortened to "partner" as the "port<n>" part
+would otherwise be repeated. Not all USB-C ports support the PD protocol,
+but for those that do, a "pd<n>" is shown in square brackets immediately to
+the right of the port it is associated with. For example:
     $ lsucpd 
     port0 [pd0]  <<====  partner [pd4] 
     port1 [pd1]  <<====  partner [pd5]
@@ -40,6 +40,8 @@ Can do:
     - show the source and sink capabilities of both ends of existing
       PD connections
     - display partner's alternate modes, if any (with -ll option)
+    - show any USB devices connected with the '--usb' option with a
+      one indented line summary for each
     - decode numeric PDOs and RDOs
     - optionally output JSON instead of plain text
 Cannot do (yet):
@@ -50,26 +52,12 @@ Cannot do (yet):
 
 The last one is aspirational and may probably require extra hardware.
 
-This is the initial version of this utility and has only been tested on one
-platform: Thinkpad X13 G3 by Lenovo. That platform relies on the UCSI
-interface exposed via sysfs starting with the Linux kernel 6 series (e.g.
-lk 6.4). Note that normal, non-root user privileges are sufficient to use
-lsucpd.
-
 This project should be regarded as "work-in-progress" due to its immaturity
 and the kernel support could be summarized as "shaky". Often after removing
 and reconnecting USB-C cables carrying power, the ucsi_acpi and typec_ucsi
 modules need to be removed then re-installed on the test platform. That
-does not inspire confidence.
-
-Not known is which versions of Intel and AMD CPUs will work apart from the
-one from the above laptop: Intel i5-1240P. Intel calls that "12th generation"
-which was superseded this year by the 13th generation. So this utility most
-likely will only work with recent laptops.
-Unfortunately another company's 12th generation laptop (ASUS VivoBook
-K3502ZA) loads ucsi modules, creates the typec and usb_power_delivery class
-directories in sysfs, but leaves them empty. The kernel log shows a
-ENOTSUPPORTED error with BIOS version 307.
+does not inspire confidence. Now with Linux kernel 7.3 the kernel support
+is more stable plus now USB devices using a type C port can be enumerated.
 
 Bugs, suggestions, or reports of success on other platforms can be sent to
 this email address or to "Issues" at:
@@ -98,29 +86,28 @@ building this package are in the last section.
 USB-C PD details
 ----------------
 There are two USB standards covering this area, recent versions are:
-   1) USB Type-C Cable and Connector Specification, Release 2.3
-   2) USB Power Delivery Specification, Revision 3.2, Version 1.0
+   1) USB Type-C Cable and Connector Specification, Release 2.5
+   2) USB Power Delivery Specification, Revision 3.2, Version 1.2
       - this is optional, so USB-C ports don't necessarily support PD
 
-Both these documents are intimidating in size (424 and 1113 pages
-respectively) but are freely available at usb.org in the Document library.
+Both these documents are intimidating in size (both over 400 pages long)
+and are freely available at usb.org in the Document library.
 Both documents have extensive "Terms and Abbreviations" sections (1.5 and
-1.6 respectively) that are very useful references because there are a lot
+2.3 respectively) that are very useful references because there are a lot
 of obscure terms. For example the PD document summarizes the difference
 between SOP' packet and SOP'' packet.
 
-USB.org's use of release, revision and version defies logic. The above
-standard names are taken from their front pages. Interconnects complying
-with 1) do not necessarily support 2) (i.e. the PD protocol). In the absence
-of PD, resistors on the CC lines determine which end is the source/host and
-which end is the the sink/device. USB PD Revision 1 is history (an experiment
-that failed). USB PD Revision 2 introduced fixed Vbus voltages up to 20 Volts
-and with an appropriate ("Emarked") cable could carry 5 Amps for 100 Watts.
-USB PD Revision 3 introduced the Programmable Power Supply (PPS) optional
-capability which included current limiting (CL) by the source. Then USB PD
-Revision 3.1 introduced "Extended Power Range" (EPR) with fixed voltages at
-28, 36 and 48 Volts. To avoid confusion, all active PD standards prior to
-Revision 3.1 were dubbed "Standard Power Range" (SPR). EPR also has a (sink)
+Interconnects complying with 1) do not necessarily support 2) (i.e. the PD
+protocol). In the absence of PD, resistors on the CC lines determine which
+end is the source/host and which end is the the sink/device. USB PD
+Revision 1 is history (an experiment that failed). USB PD Revision 2
+introduced fixed Vbus voltages up to 20 Volts and with an appropriate
+("Emarked") cable could carry 5 Amps for 100 Watts. USB PD Revision 3
+introduced the Programmable Power Supply (PPS) optional capability which
+included current limiting (CL) by the source. Then USB PD Revision 3.1
+introduced "Extended Power Range" (EPR) with fixed voltages at 28, 36 and
+48 Volts. To avoid confusion, all active PD standards prior to Revision
+3.1 were dubbed "Standard Power Range" (SPR). EPR also has a (sink)
 adjustable voltage supply (AVS) range of 15 to 48 Volts _without_ current
 limiting.
 
@@ -137,7 +124,10 @@ Some other related jargon is UFP for Upward Facing Port and DFP for
 Downward Facing Port. The mental picture here is with the USB host at the
 top of a hierarchy with USB devices at the bottom (i.e. the leaves) with
 possibly a USB hub in the middle. So an UFP on a hub connects to a DFP on
-the host (e.g. a laptop).
+the host (e.g. a laptop). On many machines the USB host is connected to
+what is termed as the "root" hub within the machine itself with its
+downward facing ports connect to a mix of USB type A rend type C
+receptacles.
 
 Electricity basics
 ------------------
@@ -172,7 +162,7 @@ This is sometimes called the "i-squared-r" formula that even Elon Musk knows
 about. Importantly it is the amount of power lost in a conductor or cable.
 Resistance typically doubles when length (of a cable) doubles. Also for a
 PD cable, power is lost both in the Vbus wire and the Ground wire (which
-usually includes the shield). So that is two times the length of the cable.
+often includes the shield). So that is two times the length of the cable.
 Formula (4) tells us to reduce I as much as possible to reduce power lost
 in the cable. Formula (2) tells us when we reduce I we must increase V to
 maintain the same P sent across the cable. [For completeness:
@@ -209,12 +199,15 @@ Building package
 ================
 The code can be found at: https://github.com/doug-gilbert/lsucpd
 
-Installation instructions are in the INSTALL file.
+Installation instructions are in the INSTALL file. Either GNU Autotools or
+Cmake can be used to build this package
 
-Various options can be given to the ./configure script. Those
-specific to this package are:
+GNU Autotools use the autogen.sh ; configure, make then make install
+sequence. Various options can be given to the ./configure script.
+Those specific to this package are:
 
   --enable-debug          Turn on debugging
+  --enable-static         build lsucpd as a static executable
 
 The build sequence is:
     # ./autogen.sh ; ./configure ; make ; make install
@@ -222,7 +215,25 @@ or
     # ./bootstrap ; ./configure ; make ; make install
 
 Note that the final 'make install' will usually require root permissions
-and will place binaries in the /usr/local/bin directory.
+and will place binaries in the /usr/local/bin directory by default.
+
+With cmake one typically uses an "out of tree" build to place all build
+artifacts plus its executable in a temporary directory called "build".
+
+    # cmake -B build
+    # cmake --build build -v
+    #
+    # ls -l build/src/lsucpd
+    # build/src/lsucpd               # test the newly built executable
+    #
+    # cd build
+    # cpack .                        # build installation package
+    #
+    # sudo dpkg -i lsucpd.xxx.deb    # on the Debian/Ubuntu system
+
+The are more instructions for the use of GNU Aitotools and cmake in the
+INSTALL file.
+
 
 The code is written in C++ and assumes the features found in C++20 so
 a relatively recent compiler will be required.
@@ -233,15 +244,13 @@ but not its functionality.
 To build with g++ 12 or clang 15 the 'libfmt' library (and its header file)
 may need to be installed. In Debian/Ubuntu this can be done with
 'apt install libfmt-dev' .
+Now with gcc version 16 and clang version 22 (and two more recent C++
+standards: 2023 and 2026) the support for C++20 code is solid with both
+compilers.
 
-Instruction for using cmake are in the INSTALL file.
 
-
-Finally it is best to keep expectations low, especially if the
-/sys/class/typec directory doesn't exist ...
- 
 
 Douglas Gilbert  <dgilbert@interlog.com>
-1st April 2026
+4th November 2026
 
-lsucpd pre-release 0.92 [svn revision: 24]
+lsucpd pre-release 0.92 [svn revision: 34]

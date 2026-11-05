@@ -18,15 +18,29 @@ target_include_directories(lsucpd PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_include_directories(lsucpd PRIVATE ${CMAKE_BINARY_DIR})
 
 if ( ENABLE_DEBUG )
-  target_compile_definitions(lsucpd PRIVATE DEBUG)
-  target_compile_options(lsucpd PRIVATE
-    -Wextra -Wmisleading-indentation -Wduplicated-cond -Wlogical-op
-    -Wnull-dereference -Wshadow -Wunused -Wsizeof-array-argument
-    -Wduplicated-branches -Wparentheses)
-#  target_compile_options(lsucpd $<COMPILE_LANGUAGE:C> C PRIVATE
-#    -Wextra -Wmisleading-indentation -Wduplicated-cond -Wlogical-op
-#    -Wnull-dereference -Wshadow -Wunused -Wsizeof-array-argument
-#    -Wduplicated-branches -Wjump-misses-init -Wparentheses)
+    target_compile_definitions(lsucpd PRIVATE DEBUG)
+    if ( COMP_GCC )
+        target_compile_options(lsucpd PRIVATE
+            -Wextra -Wmisleading-indentation -Wduplicated-cond -Wlogical-op
+            -Wnull-dereference -Wshadow -Wunused -Wsizeof-array-argument
+            -Wduplicated-branches -Wparentheses)
+            # -Wjump-misses-init is C++ only
+    elseif ( COMP_CLANG )
+        target_compile_options(lsucpd PRIVATE
+            -Wextra -Wshadow
+            -Wnull-dereference -Wdouble-promotion -Wformat=2 -Wundef
+            -Wimplicit-fallthrough -Woverloaded-virtual -Wnon-virtual-dtor
+            -Wcast-align -Wcast-qual -Wunused -Wno-deprecated
+            -Wno-missing-format-attribute
+            -Wno-format-nonliteral
+            -Wunreachable-code)
+            # -Wpedantic -Wconversion -Wsign-conversion -Wold-style-cast
+            # -Weverything # generates way too much nitpicking
+    elseif ( COMP_MSVC )
+        # MESSAGE( STATUS ">> MSVC compiler detected" )
+    else ()
+        # MESSAGE( STATUS ">> did NOT detect compiler" )
+    endif ()
 endif ( ENABLE_DEBUG )
 
 if ( BUILD_SHARED_LIBS )

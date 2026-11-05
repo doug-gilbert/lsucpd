@@ -4,11 +4,12 @@
 #cmakedefine HAVE_SOURCE_LOCATION 1
 #cmakedefine FORMAT_PRESENT 1
 
-#define BUILD_TIME "@BUILD_TIME@"
+#cmakedefine COMP_GCC 1
+#cmakedefine COMP_CLANG 1
+#cmakedefine COMP_MSVC 1
+#cmakedefine COMP_UNKNOWN 1
 
-// #define SG_LIB_LINUX @OS_LINUX@
-// #define SG_LIB_FREEBSD @OS_FREEBSD@
-// #cmakedefine01 SG_LIB_AIX @SG_LIB_AIX@
+#define BUILD_TIME "@BUILD_TIME@"
 
 // # This will generate a line in the output_file. Then in CMLists.txt:
 // #      set(FEATURE_COMMENT "//")

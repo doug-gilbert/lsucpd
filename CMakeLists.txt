@@ -5,12 +5,10 @@ project(lsucpd VERSION 0.91.9 LANGUAGES C CXX)
 # Example: VERSION 0.91.9 is pre-release of 0.92
 
 set ( CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -W" )
-set (CMAKE_CXX_STANDARD 20 )
-set (CMAKE_CXX_STANDARD_REQUIRED ON)
-set (CMAKE_CXX_EXTENSIONS OFF)
+set ( CMAKE_CXX_STANDARD 20 )
+set ( CMAKE_CXX_STANDARD_REQUIRED ON )
+set ( CMAKE_CXX_EXTENSIONS OFF )
 set ( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -W" )
-
-add_compile_definitions ( _LARGEFILE64_SOURCE _FILE_OFFSET_BITS=64 HAVE_CONFIG_H )
 
 string(TIMESTAMP BUILD_TIME "%Y%m%d %H:%M:%S")
 
@@ -32,6 +30,41 @@ set (HAVE_SOURCE_LOCATION 0)
 if ( SOURCE_LOCATION_PRESENT )
     set (HAVE_SOURCE_LOCATION 1)
 endif ( SOURCE_LOCATION_PRESENT )
+
+set(COMP_GCC 0)
+set(COMP_CLANG 0)
+set(COMP_MSVC 0)
+set(COMP_UNKNOWN 0)
+
+message(STATUS "CMAKE_C_COMPILER     = ${CMAKE_C_COMPILER}")
+message(STATUS "CMAKE_C_COMPILER_ID  = ${CMAKE_C_COMPILER_ID}")
+message(STATUS "CMAKE_C_COMPILER_VERSION = ${CMAKE_C_COMPILER_VERSION}")
+
+if ( $ENV{CC} MATCHES "gcc" )
+    MESSAGE( STATUS ">> GCC compiler selected [ev]" )
+    set(COMP_GCC 1)
+elseif ( $ENV{CC} MATCHES "clang" ) 
+    MESSAGE( STATUS ">> CLANG compiler selected [ev]" )
+    set(COMP_CLANG 1)
+elseif ( CMAKE_C_COMPILER_ID MATCHES "GNU" ) 
+    MESSAGE( STATUS ">> GCC compiler detected" )
+    set(COMP_GCC 1)
+elseif (CMAKE_C_COMPILER_ID MATCHES "Clang")
+    MESSAGE( STATUS ">> CLANG compiler detected" )
+    set(COMP_CLANG 1) 
+elseif ( MSVC )
+    MESSAGE( STATUS ">> MSVC compiler detected" )
+    set(COMP_MSVC 1)
+else ()
+    MESSAGE( STATUS ">> did NOT detect compiler" )
+    set(COMP_UNKNOWN 1)
+endif ()
+
+if (MSVC)
+    add_compile_definitions ( HAVE_CONFIG_H )
+else ()
+    add_compile_definitions ( _LARGEFILE64_SOURCE _FILE_OFFSET_BITS=64 HAVE_CONFIG_H )
+endif ()
 
 # Not much passed through config.h , perhaps more in the future
 configure_file( ${CMAKE_SOURCE_DIR}/config.h.in.cmake ${CMAKE_BINARY_DIR}/config.h )

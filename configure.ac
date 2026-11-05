@@ -26,7 +26,22 @@ AC_ARG_ENABLE([debug],
                   no)  debug=false ;;
                   *) AC_MSG_ERROR([bad value ${enableval} for --enable-debug]) ;;
                esac],[debug=false])
+
+AC_ARG_ENABLE([static],
+    [AS_HELP_STRING([--enable-static],
+        [build static libraries @<:@default=yes@:>@])],
+    [enable_static=$enableval],
+    [enable_static=yes])
+
+AC_ARG_ENABLE([shared],
+    [AS_HELP_STRING([--disable-shared],
+        [do not build shared libraries @<:@default=yes@:>@])],
+    [enable_shared=$enableval],
+    [enable_shared=yes])
+
 AM_CONDITIONAL([DEBUG], [test x$debug = xtrue])
+AM_CONDITIONAL([BUILD_STATIC], [test "x$enable_static" = "xyes"])
+AM_CONDITIONAL([BUILD_SHARED], [test "x$enable_shared" = "xyes"])
 
 AC_CONFIG_FILES([
 	Makefile

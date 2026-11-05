@@ -25,7 +25,7 @@ extern "C" {
 
 
 /* Following macro for sgj_pr_hr() which takes printf() like arguments */
-#if __USE_MINGW_ANSI_STDIO -0 == 1
+#if defined(__USE_MINGW_ANSI_STDIO) && (__USE_MINGW_ANSI_STDIO -0 == 1)
 #define __printf(a, b) __attribute__((__format__(gnu_printf, a, b)))
 #elif defined(__GNUC__) || defined(__clang__)
 #define __printf(a, b) __attribute__((__format__(printf, a, b)))
@@ -423,7 +423,7 @@ char * sg_json_usage(int char_if_not_j, char * b, int blen);
  * '"' need to be escaped with a preceding '\'. These C escape codes are used
  * in JSON: '\b', '\f', '\n', '\r' and '\t'. Other control characters, and DEL
  * are encoded as '\x<hh>' where <hh> is two hex digits. So the DEL and
- * null ACSII characters in the input will appear as '\x7f' and '\x00'
+ * null ASCII characters in the input will appear as '\x7f' and '\x00'
  * respectively in the output. The output serializer will expand those
  * two to '\\x7f' and '\\x00'. Note that the JSON form of '\u<hhhh>' is
  * _not_ used. The input is pointed to by 'cup' which is 'ulen' bytes long.

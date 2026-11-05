@@ -125,7 +125,7 @@ sg_get_num(const char * buf)
     bool is_hex = false;
     int res, num, n, len;
     unsigned int unum;
-    char * cp;
+    const char * cp;
     const char * b;
     const char * b2p;
     char c = 'c';
@@ -143,8 +143,7 @@ sg_get_num(const char * buf)
         buf += n;
         len -= n;
     }
-    /* following hack to keep C++ happy */
-    cp = strpbrk((char *)buf, " \t,#-");
+    cp = strpbrk(buf, " \t,#-");
     if (cp) {
         len = cp - buf;
         n = (int)sizeof(lb) - 1;
@@ -288,7 +287,7 @@ sg_get_llnum(const char * buf)
     int res, len, n;
     int64_t num, ll;
     uint64_t unum;
-    char * cp;
+    const char * cp;
     const char * b;
     const char * b2p;
     char c = 'c';
@@ -306,8 +305,7 @@ sg_get_llnum(const char * buf)
         buf += n;
         len -= n;
     }
-    /* following cast hack to keep C++ happy */
-    cp = strpbrk((char *)buf, " \t,#-");
+    cp = strpbrk(buf, " \t,#-");
     if (cp) {
         len = cp - buf;
         n = (int)sizeof(lb) - 1;

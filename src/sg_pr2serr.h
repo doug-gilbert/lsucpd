@@ -24,12 +24,12 @@ extern "C" {
  * Note that this header and its implementation do not depend on sg_lib.[hc]
  * or any other sg3_utils components. */
 
-#if __USE_MINGW_ANSI_STDIO -0 == 1
-#define __printf(a, b) __attribute__((__format__(gnu_printf, a, b)))
+#if defined(__USE_MINGW_ANSI_STDIO) && (__USE_MINGW_ANSI_STDIO - 0 == 1)
+    #define __printf(a, b) __attribute__((__format__(gnu_printf, a, b)))
 #elif defined(__GNUC__) || defined(__clang__)
-#define __printf(a, b) __attribute__((__format__(printf, a, b)))
+    #define __printf(a, b) __attribute__((__format__(printf, a, b)))
 #else
-#define __printf(a, b)
+    #define __printf(a, b)
 #endif
 
 int pr2serr(const char * fmt, ...) __printf(1, 2);

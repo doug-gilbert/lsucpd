@@ -45,7 +45,7 @@ AM_CXXFLAGS = -Wall -W -pedantic -std=c++20 $(DBG_CXXFLAGS)
 ## AM_CXXFLAGS = -Wall -W -pedantic -std=c++23 --analyze $(DBG_CXXCLANGFLAGS)
 
 lsucpd_SOURCES =	lsucpd.cpp \
-			lsucpd.hpp \
+			lsucpd.h \
 			bwprint.hpp \
 			sg_json_builder.h \
 			sg_json_builder.c \
@@ -56,6 +56,10 @@ lsucpd_SOURCES =	lsucpd.cpp \
 			sg_json.c 
 
 lsucpd_LDADD = @FMT_LDADD@
+
+if BUILD_STATIC
+lsucpd_LDFLAGS = -static
+endif
 
 distclean-local:
 	rm -rf \

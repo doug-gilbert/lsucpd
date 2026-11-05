@@ -14,7 +14,7 @@
 
 // Initially this utility will assume C++20 or later
 
-static const char * const version_str = "0.92 20260730 [svn: r33]";
+static const char * const version_str = "0.92 20261104 [svn: r34]";
 
 static const char * const my_name { "lsucpd: " };
 
@@ -26,10 +26,10 @@ static const char * const my_name { "lsucpd: " };
 #include <map>
 #include <ranges>
 #include <algorithm>            // needed for ranges::sort()
-#include <regex>
 #include <cstring>              // needed for strstr()
 #include <cstdio>               // using sscanf()
 #include <getopt.h>
+#include <fnmatch.h>            // for FILTER argument
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"
@@ -39,7 +39,7 @@ static const char * const my_name { "lsucpd: " };
 #include <source_location>
 #endif
 
-#include "lsucpd.hpp"
+#include "lsucpd.h"
 // Bill Weinman's header library for C++20 follows. Expect to drop if moved
 // to >= C++23 and then s/bw::print/std::print/ .
 #include "bwprint.hpp"
@@ -55,7 +55,9 @@ static const char * const my_name { "lsucpd: " };
  *    symlink: a symbolic link that often breaks the otherwise hierarchial
  *             nature of a file system, so they are evil ...
  *    symlink target: the destination of the symlink: a file, more often
- *                    a directory, may not even exist
+ *                    a directory and may not even exist. targets are often
+ *                    relative to the location of the symlink although
+ *                    they may be an absolute path.
  *    dangling or hanging symlink: one whose target does not exist
  *    link name of symlink: where the symlink actually resides, when this
  *                          is given to the readlink(2) system call it
@@ -74,23 +76,27 @@ static const char * const my_name { "lsucpd: " };
  * chip at the far end of the cable. USB PD is a multi-point protocol.
  */
 
+/* Capitalize the first letter of any class, struct, enum, or using name
+ * introduced by this project. Namespaces, (member) functions and
+ * variables start with a lower case letter. */
+
 namespace fs = std::filesystem;
-using sstring=std::string;
-using sstring_vw=std::string_view;
-using sregex=std::regex;
-using strstr_m=std::map<sstring, sstring>;
+using Sstring=std::string;
+using Sstring_vw=std::string_view;
+using Svector=std::vector<Sstring>;
+using Strstr_m=std::map<Sstring, Sstring>;
 
 
 static const fs::directory_iterator end_itr { };
-static const sstring empty_str { };
+static const Sstring empty_str { };
 static const auto dir_opt = fs::directory_options::skip_permission_denied;
 
-// vector of /sys/class/power_supply/ucsi* filename<
-std::vector<sstring> pow_sup_ucsi_v;
+// vector of /sys/class/power_supply/ucsi* filenames
+static Svector pow_sup_ucsi_v;
 
 int lsucpd_verbose = 0;
 
-enum class pw_op_mode_e {
+enum class Pw_op_mode_e {
     def = 0,    // "default": 5 Volts at 900 mA (need to confirm)
                 // Is that 6 load_units ?
     v5i1_5,     // 5 Volts at "1.5A" (type C resistor setting)
@@ -98,23 +104,34 @@ enum class pw_op_mode_e {
     usb_pd,     // "usb_power_delivery"
 };
 
-// This struct holds directory_entry_s of port<n>[-partner] objects found
+// This struct holds directory_entry-s of port<n>[-partner] objects found
 // under the /sys/class/typec/ directory.
 // Assume objects of this class can outlive *itr in the directory scan that
 // was used to create them.
-struct tc_dir_elem : public fs::directory_entry {
-    tc_dir_elem(const fs::directory_entry & bs) : fs::directory_entry(bs) { };
+struct Tc_dir_elem : public fs::directory_entry {
+    Tc_dir_elem(const fs::directory_entry & bs) : fs::directory_entry(bs) { };
 
-    tc_dir_elem() noexcept : fs::directory_entry() { };
+    Tc_dir_elem() noexcept : fs::directory_entry() { };
 
-    // tc_dir_elem(const tc_dir_elem & ) = delete;
+    // Tc_dir_elem(const Tc_dir_elem & ) = delete;
 
     bool is_partner() const noexcept { return partner_; }
 
+    // want sort order like this: p0, p0p, p1, p1p, p3, p3p
+    bool operator<(const Tc_dir_elem & oth) const {
+        if (port_num_ < oth.port_num_)
+            return true;
+        else if (port_num_ > oth.port_num_)
+            return false;
+        else if (! partner_ && oth.partner_)
+            return true;
+        else
+            return false;
+    }
+
     bool partner_ {false}; // mark non-static member variables with trailing _
 
-    // if class/typec/port<pd_inum_>[-partner]/usb_power_delivery exists
-    bool upd_dir_exists_ {false};
+    bool upd_dir_exists_ {false};  // corresponding pd<num> directory exists
 
     bool source_sink_known_ {false};
     bool is_source_ { false };
@@ -122,22 +139,25 @@ struct tc_dir_elem : public fs::directory_entry {
     bool data_role_known_ {false};
     bool is_host_ { false };
 
-    pw_op_mode_e pow_op_mode_ { pw_op_mode_e::def };
+    Pw_op_mode_e pow_op_mode_ { Pw_op_mode_e::def };
 
     unsigned int port_num_ {UINT32_MAX};    // if partner: local's port number
 
-    int pd_inum_ {-1};  // sysfs pd index number (starts from 0)
+    int pd_inum_ {-1};  // sysfs pd index number (starts from 0), def: none
 
     int partner_ind_ { -1 }; // only >= 0 for local ports that have partners
 
-    sstring match_str_;         // p<port_num>[p]
+    Sstring match_str_;         // p<port_num>[p]
 
-    // maps /sys/class/typec/port<num>[-partner]/* regular filenames to
-    // contents
-    std::map<sstring, sstring> tc_sdir_reg_m;
+    // maps /sys/class/typec/port<num>[-partner] regular filenames to
+    // contents. std::string --> std::string
+    Strstr_m tc_sdir_reg_m;
+
+    // Vector of USB device paths associated with this port, as std::string_s
+    Svector tc_usb_dev_v;
 };
 
-enum class pdo_e {
+enum class Pdo_e {
     pdo_null = 0,   // all 32 bits are zero, used a filler
     pdo_fixed,
     pdo_variable,
@@ -151,20 +171,20 @@ enum class pdo_e {
                   // (SPR/EPR) AVS
 };
 
-struct pdo_elem {
-    enum pdo_e pdo_el_ { pdo_e::pdo_null };
+struct Pdo_elem {
+    enum Pdo_e pdo_el_ { Pdo_e::pdo_null };
     bool is_source_caps_;
     uint16_t pdo_ind_;  // usb-c pd PDO index (starts at 1)
     uint32_t raw_pdo_;
     fs::path pdo_d_p_; // for example: /.../1:fixed_supply
 
-    mutable strstr_m ascii_pdo_m_;
+    mutable Strstr_m ascii_pdo_m_;
 
-    friend auto operator<=>(const pdo_elem & lhs,
-                            const pdo_elem & rhs) noexcept
+    friend auto operator<=>(const Pdo_elem & lhs,
+                            const Pdo_elem & rhs) noexcept
         { return lhs.pdo_ind_ <=> rhs.pdo_ind_; }
-    friend auto operator==(const pdo_elem & lhs,
-                           const pdo_elem & rhs) noexcept
+    friend auto operator==(const Pdo_elem & lhs,
+                           const Pdo_elem & rhs) noexcept
         { return lhs.pdo_ind_ == rhs.pdo_ind_; }
 };
 
@@ -172,51 +192,58 @@ struct pdo_elem {
 // the /sys/class/usb_power_delivery/ directory.
 // Assume objects of this class can outlive *itr in the directory scan that
 // created them.
-struct upd_dir_elem : public fs::directory_entry {
-    upd_dir_elem() = default;
+struct Upd_dir_elem : public fs::directory_entry {
+    Upd_dir_elem() = default;
     // following needed to make this object from instance of its base class
-    upd_dir_elem(const fs::directory_entry & bs, bool is_partner)
+    Upd_dir_elem(const fs::directory_entry & bs, bool is_partner)
                 : fs::directory_entry(bs), is_partner_(is_partner) { };
 
-    sstring match_str_;         // pd<pd_num>
+    Sstring match_str_;         // pd<pd_num>
     bool is_partner_ { };       // only used by --data (direction) option
     bool usb_comms_incapable_ { };  // only used by --data (direction) option
+                                    // This setting is not reliable, override
+                                    // if USB devices found.
 
-    std::vector<pdo_elem> source_pdo_v_;
-    std::vector<pdo_elem> sink_pdo_v_;
+    std::vector<Pdo_elem> source_pdo_v_;
+    std::vector<Pdo_elem> sink_pdo_v_;
 };
 
 // command line options and other things that would otherwise be at file
-// scope. Don't mark with trailing _
-struct opts_t {
-    bool do_json;
+// scope. Zero-ed just after creation. Don't mark with trailing _
+struct Opts_t {
+    bool build_upd_map_called;
     bool caps_given;
     bool do_data_dir;
+    bool do_json;
+    bool filter_for_pd;
     bool is_pdo_snk;
     bool verbose_given;
     bool version_given;
     int do_caps;
     int do_help;
     int do_long;
+    int do_usb_devs;
     const char * pseudo_mount_point;
     const char * json_arg;  /* carries [JO] if any */
     const char * js_file; /* --js-file= argument */
     const char * pdo_opt_p;
     const char * rdo_opt_p;
     sgj_state json_st;  /* -j[JO] or --json[=JO] */
-    // vector of sorted /sys/class/typec/*  tc_dir_elem objects
-    std::vector<tc_dir_elem> tc_de_v;
-    // map of <pd_num> to corresponding
-    // /sys/class/usb_power_delivery/pd<pd_num> upd_dir_elem object
-    std::map<int, upd_dir_elem> upd_de_m;
-    // map of port_number to summary line string (with trailing \n)
-    std::map<unsigned int, sstring> summ_out_m;
 
-    std::vector<sstring> filter_port_v;
-    std::vector<sstring> filter_pd_v;
+    // vector of sorted /sys/class/typec/*  Tc_dir_elem objects (ports)
+    std::vector<Tc_dir_elem> tc_de_v;
+
+    // map of <pd_num> to corresponding
+    // /sys/class/usb_power_delivery/pd<pd_num> Upd_dir_elem object
+    std::map<int, Upd_dir_elem> upd_de_m;
+    // map of port_number to summary line string (without trailing \n)
+    std::map<unsigned int, Sstring> summ_out_m;
+
+    // Command line FILTER arguments
+    Svector filter_v;
 };
 
-struct do_fld_desc_t {   // 4 bytes long describing a PDO and a RDO field
+struct Do_fld_desc_t {   // 4 bytes long describing a PDO and a RDO field
     uint8_t low_pdo_bit;        // lowest bit address in <n> bit field
     uint8_t num_bits_typ;       // lower 4 bits: num_bits, upper 4 bits: type
                                 // 0 --> filler as is rest of row
@@ -252,6 +279,7 @@ static const struct option long_options[] = {
     {"pdo-source", required_argument, 0, 'P'},
     {"rdo", required_argument, 0, 'r'},
     {"sysfsroot", required_argument, 0, 'y'},
+    {"usb", no_argument, 0, 'u'},
     {"verbose", no_argument, 0, 'v'},
     {"version", no_argument, 0, 'V'},
     {0, 0, 0, 0},
@@ -294,8 +322,8 @@ static const char * pdo_str[] = {
     "output_voltage",
 };
 
-/* PDO and RDO field definitions based on an array of do_fld_desc_t objects */
-static const struct do_fld_desc_t pdo_part_a[67] = {
+/* PDO and RDO field definitions based on an array of Do_fld_desc_t objects */
+static const struct Do_fld_desc_t pdo_part_a[67] = {
 
 // Start PDO entries:
 /* index=0 */
@@ -399,7 +427,7 @@ static const struct do_fld_desc_t pdo_part_a[67] = {
     {0, 0, 0, 0},       // sentinel
 };
 
-static sstring sysfs_root { "/sys" };
+static Sstring sysfs_root { "/sys" };
 static const char * const upd_sn = "usb_power_delivery";
 static const char * const class_s = "class";
 static const char * const typec_s = "typec";
@@ -418,14 +446,14 @@ static const char * const epr_avs_ln_sn = "epr_adjustable_supply";
 static const char * const num_alt_modes_sn = "number_of_alternate_modes";
 static const char * const ct_sn = "class_typec";
 static const char * const cupd_sn = "class_usb_power_delivery";
-static const char * const lsucpd_jn_sn = "lsucpd_join";
+static const char * const lsucpd_internal_sn = "lsucpd_internal";
 
 static fs::path sc_pt;
 static fs::path sc_typec_pt;
 static fs::path sc_upd_pt;
 static fs::path sc_powsup_pt;
 
-static inline sstring filename_as_str(const fs::path & pt) noexcept
+static inline Sstring filename_as_str(const fs::path & pt) noexcept
 {
     return pt.filename().string();
 }
@@ -435,9 +463,8 @@ static const char * const usage_message1 =
     "Usage: lsucpd [--caps] [--data] [--help] [--json[=JO]] [--js-file=JFN]\n"
     "              [--long] [--pdo-snk=SI_PDO[,IND]] "
     "[--pdo-src=SO_PDO[,IND]]\n"
-    "              [--rdo=RDO,REF] [--sysfsroot=SPATH] [--verbose] "
-    "[--version]\n"
-    "              [FILTER ...]\n"
+    "              [--rdo=RDO,REF] [--sysfsroot=SPATH] [--usb] [--verbose]\n"
+    "              [--version]  [FILTER ...]\n"
     "  where:\n"
     "    --caps|-c         list pd sink and source capabilities. Once: one "
     "line\n"
@@ -468,17 +495,21 @@ static const char * const usage_message1 =
     "                                Variable, PPS or AVS\n"
     "    --sysfsroot=SPATH|-y SPATH    set sysfs mount point to SPATH (def: "
     "/sys)\n"
+    "    --usb|-u          list USB devices connected to each Type-C "
+    "port.\n"
+    "                      Usually USB devices are connected to the partner "
+    "port\n"
     "    --verbose|-v      increase verbosity, more debug information\n"
     "    --version|-V      output version string and exit\n\n";
 static const char * const usage_message2 =
-    "LiSt Usb-C Power Delivery (lsucpd) information on the command line in a\n"
-    "compact form. This utility obtains that information from sysfs (under:\n"
-    "/sys ). FILTER arguments are optional; if present they are of the "
-    "form:\n'p<num>[p]' or 'pd<num>'. The first is for matching (typec) "
-    "ports and the\nsecond for matching pd objects. The first form may "
-    "have a trailing 'p' for\nmatching its partner port. The FILTER "
-    "arguments may be 'grep basic'\nregexes. Multiple FILTER arguments may "
-    "be given.\n";
+    "LiSt Usb-C Power Delivery (lsucpd) information on the command line in "
+    "a\ncompact form. This utility obtains that information from sysfs "
+    "(under: /sys).\nFILTER arguments are optional; if present they are of "
+    "the form: 'p<num>[p]'\n'or pd<num>'. The first is for matching (typec) "
+    "ports and the second for\nmatching pd objects. The first form may "
+    "have a trailing 'p' for matching\nits partner port. The FILTER "
+    "arguments use POSIX fnmatch(FNM_EXTMATCH)\nbased (glob like) matching. "
+    "Multiple FILTER arguments may be given.\n";
 
 static void
 usage() noexcept
@@ -487,23 +518,23 @@ usage() noexcept
     bw::print("{}", usage_message2);
 }
 
-static sstring
-pdo_e_to_str(enum pdo_e p_e) noexcept
+static Sstring
+pdo_e_to_str(enum Pdo_e p_e) noexcept
 {
     switch (p_e) {
-    case pdo_e::pdo_fixed: return fixed_ln_sn;
-    case pdo_e::pdo_variable: return vari_ln_sn;
-    case pdo_e::pdo_battery: return batt_ln_sn;
-    case pdo_e::apdo_pps: return pps_ln_sn;
-    case pdo_e::apdo_spr_avs: return spr_avs_ln_sn;
-    case pdo_e::apdo_epr_avs: return epr_avs_ln_sn;
+    case Pdo_e::pdo_fixed: return fixed_ln_sn;
+    case Pdo_e::pdo_variable: return vari_ln_sn;
+    case Pdo_e::pdo_battery: return batt_ln_sn;
+    case Pdo_e::apdo_pps: return pps_ln_sn;
+    case Pdo_e::apdo_spr_avs: return spr_avs_ln_sn;
+    case Pdo_e::apdo_epr_avs: return epr_avs_ln_sn;
     default: return "no supply";
     }
 }
 
 #ifdef HAVE_SOURCE_LOCATION
 
-// For error processing, declaration with default arguments is in lsucpd.hpp
+// For error processing, declaration with default arguments is in lsucpd.h
 void
 pr2ser(int vb_ge, const std::string & emsg,
        const std::error_code & ec /* = { } */,
@@ -533,7 +564,7 @@ pr2ser(int vb_ge, const std::string & emsg,
     }
 }
 
-// For error processing, declaration with default arguments is in lsucpd.hpp
+// For error processing, declaration with default arguments is in lsucpd.h
 void
 pr3ser(int vb_ge, const std::string & e1msg,
        const char * e2msg /* = nullptr */,
@@ -561,7 +592,7 @@ pr3ser(int vb_ge, const std::string & e1msg,
     }
 }
 
-// For error processing, declaration with default arguments is in lsucpd.hpp
+// For error processing, declaration with default arguments is in lsucpd.h
 void
 pr4ser(int vb_ge, const std::string & e1msg, const std::string & e2msg,
        const char * e3msg /* = nullptr */, const std::error_code & ec,
@@ -591,7 +622,7 @@ pr4ser(int vb_ge, const std::string & e1msg, const std::string & e2msg,
 
 #else
 
-// For error processing, declaration with default arguments is in lsucpd.hpp
+// For error processing, declaration with default arguments is in lsucpd.h
 void
 pr2ser(int vb_ge, const std::string & emsg,
        const std::error_code & ec /* = { } */) noexcept
@@ -609,7 +640,7 @@ pr2ser(int vb_ge, const std::string & emsg,
         bw::print(stderr, "{}\n", emsg);
 }
 
-// For error processing, declaration with default arguments is in lsucpd.hpp
+// For error processing, declaration with default arguments is in lsucpd.h
 void
 pr3ser(int vb_ge, const std::string & e1msg,
        const char * e2msg /* = nullptr */,
@@ -626,7 +657,7 @@ pr3ser(int vb_ge, const std::string & e1msg,
         bw::print(stderr, "'{}': {}\n", e1msg, e2msg);
 }
 
-// For error processing, declaration with default arguments is in lsucpd.hpp
+// For error processing, declaration with default arguments is in lsucpd.h
 void
 pr4ser(int vb_ge, const std::string & e1msg, const std::string & e2msg,
        const char * e3msg /* = nullptr */, const std::error_code & ec)
@@ -645,68 +676,12 @@ pr4ser(int vb_ge, const std::string & e1msg, const std::string & e2msg,
 
 #endif
 
-// Don't want exceptions flying around and std::filesystem helps in that
-// regard. However std::regex only uses exceptions so wrap call of 2
-// argument ctor which can throw. Expects an instance of
-// std::basic_regex<char> created with a no argument ctor (which is
-// declared noexcept in the standard). Succeeds when ec is false and
-// then 'pat' will contain a new instance of std::basic_regex<char>
-// created with ctor(filt, sot).
-static void
-regex_ctor_noexc(std::basic_regex<char> & pat, const sstring & filt,
-                 std::regex_constants::syntax_option_type sot,
-                 std::error_code & ec) noexcept
-{
-    ec.clear();
-
-    try {
-        sregex rx(filt, sot);
-
-        rx.swap(pat);
-    }
-    catch (const std::regex_error & e) {
-        print_err(-1, "{:s}\n", e.what());
-        print_err(-1, "CODE IS: {}\n", (int)e.code());
-        ec.assign(1, std::generic_category());
-    }
-    catch ( ... ) {
-        print_err(-1, "unknown exception\n");
-        ec.assign(1, std::generic_category());
-    }
-}
-
-// User can easily enter a regex pattern that causes std::regex_match() to
-// throw. Catch everything and set an arbitrary error code.
-static bool
-regex_match_noexc(const sstring & actual, const std::basic_regex<char> & pat,
-                  std::error_code & ec) noexcept
-{
-    bool res { false };
-
-    ec.clear();
-    try {
-        res = std::regex_match(actual, pat);
-    }
-    catch (const std::regex_error & e) {
-        print_err(-1, "{:s}\n", e.what());
-        print_err(-1, "CODE IS: {}\n", (int)e.code());
-        ec.assign(1, std::generic_category());
-        res = false;
-    }
-    catch ( ... ) {
-        print_err(-1, "unknown exception\n");
-        ec.assign(1, std::generic_category());
-        res = false;
-    }
-    return res;
-}
-
-// If base_name.empty() is true, just use dir_or_fn_pt as name. If good
-// and last char in val_out is '\n' then erase it.
-// Returns errno in ec.value() if ec() is true, else returns false for good
+// If base_name.empty() is true, just use dir_or_fn_pt as name. If good and
+// last char in val_out is '\n' then erase it. Returns errno in ec.value()
+// if ec() is true (and clears val_out), else returns false for good fetch.
 static std::error_code
-get_value(const fs::path & dir_or_fn_pt, const sstring & base_name,
-          sstring & val_out, int max_value_len = 32) noexcept
+get_value(const fs::path & dir_or_fn_pt, const Sstring & base_name,
+          Sstring & val_out, int max_value_len = 32) noexcept
 {
     FILE * f;
     char * bp;
@@ -733,7 +708,7 @@ get_value(const fs::path & dir_or_fn_pt, const sstring & base_name,
         bp[len - 1] = '\0';
         --len;
     }
-    // val_out = std::move( sstring { bp, len } );
+    // val_out = std::move( Sstring { bp, len } );
     val_out.assign(bp, len);
     fclose(f);
     return ec;
@@ -744,7 +719,7 @@ get_value(const fs::path & dir_or_fn_pt, const sstring & base_name,
  * contents form a pair inserted into map_io. Hidden files (files starting
  * with ".") are skipped. Only the first 32 bytes of each file are read. */
 static std::error_code
-map_d_regu_files(const fs::path & dir_pt, strstr_m & map_io,
+map_d_regu_files(const fs::path & dir_pt, Strstr_m & map_io,
               bool ignore_uevent = true) noexcept
 {
     std::error_code ecc { };
@@ -760,8 +735,8 @@ map_d_regu_files(const fs::path & dir_pt, strstr_m & map_io,
          (! ecc) && itr != end_itr;
          itr.increment(ecc) ) {
         const fs::path & pt { itr->path() };
-        const sstring name { filename_as_str(pt) };
-        sstring val;
+        const Sstring name { filename_as_str(pt) };
+        Sstring val;
 
         pr3ser(5, name, "<<< found");
         if (fs::is_regular_file(*itr, ec) && (! pt.empty()) &&
@@ -784,8 +759,8 @@ map_d_regu_files(const fs::path & dir_pt, strstr_m & map_io,
 
 // Expect to find keys: "power_role" and "power_operation_mode" in 'm'.
 static bool
-query_power_dir(const std::map<sstring, sstring> & m, bool & is_source,
-                pw_op_mode_e & pom) noexcept
+query_power_dir(const Strstr_m & m, bool & is_source,
+                Pw_op_mode_e & pom) noexcept
 {
     bool res = false;
     const auto it { m.find("power_role") };
@@ -807,27 +782,27 @@ query_power_dir(const std::map<sstring, sstring> & m, bool & is_source,
     if (it2 != m.end()) {
         res = true;
         if (strstr(it2->second.c_str(), "default"))
-            pom = pw_op_mode_e::def;
+            pom = Pw_op_mode_e::def;
         else if (strstr(it2->second.c_str(), "1.5"))
-            pom = pw_op_mode_e::v5i1_5;
+            pom = Pw_op_mode_e::v5i1_5;
         else if (strstr(it2->second.c_str(), "3.0"))
-            pom = pw_op_mode_e::v5i3_0;
+            pom = Pw_op_mode_e::v5i3_0;
         else if (strstr(it2->second.c_str(), "power_delivery"))
-            pom = pw_op_mode_e::usb_pd;
+            pom = Pw_op_mode_e::usb_pd;
         else {
             pr3ser(0, it2->second, "<< unexpected power_operation_mode");
-            pom = pw_op_mode_e::def;
+            pom = Pw_op_mode_e::def;
         }
     } else
-        pom = pw_op_mode_e::def;
+        pom = Pw_op_mode_e::def;
     return res;
 }
 
-// Returns true if "data_role" found in map m. If it is sets is_host to
+// Returns true if "data_role" found in map m. If it is, sets is_host to
 // true if '[host]' found in value associated with "data_role" else sets
 // is_host to false; if not found sets is_host to false.
 static bool
-query_data_dir(const std::map<sstring, sstring> & m, bool & is_host) noexcept
+query_data_dir(const Strstr_m & m, bool & is_host) noexcept
 {
     bool res = false;
     const auto it { m.find("data_role") };
@@ -848,10 +823,10 @@ query_data_dir(const std::map<sstring, sstring> & m, bool & is_host) noexcept
 }
 
 static unsigned int
-get_millivolts(const sstring & name, const strstr_m & m) noexcept
+get_millivolts(const Sstring & name, const Strstr_m & m) noexcept
 {
     unsigned int mv;
-    const strstr_m::const_iterator it = m.find(name);
+    const Strstr_m::const_iterator it = m.find(name);
 
     if ((it != m.end()) && (1 == sscanf(it->second.c_str(), "%umV", &mv)))
         return mv;
@@ -859,10 +834,10 @@ get_millivolts(const sstring & name, const strstr_m & m) noexcept
 }
 
 static unsigned int
-get_milliamps(const sstring & name, const strstr_m & m) noexcept
+get_milliamps(const Sstring & name, const Strstr_m & m) noexcept
 {
     unsigned int ma;
-    const strstr_m::const_iterator it = m.find(name);
+    const Strstr_m::const_iterator it = m.find(name);
 
     if ((it != m.end()) && (1 == sscanf(it->second.c_str(), "%umA", &ma)))
         return ma;
@@ -870,10 +845,10 @@ get_milliamps(const sstring & name, const strstr_m & m) noexcept
 }
 
 static unsigned int
-get_milliwatts(const sstring & name, const strstr_m & m) noexcept
+get_milliwatts(const Sstring & name, const Strstr_m & m) noexcept
 {
     unsigned int mw;
-    const strstr_m::const_iterator it = m.find(name);
+    const Strstr_m::const_iterator it = m.find(name);
 
     if ((it != m.end()) && (1 == sscanf(it->second.c_str(), "%umW", &mw)))
         return mw;
@@ -881,10 +856,10 @@ get_milliwatts(const sstring & name, const strstr_m & m) noexcept
 }
 
 static unsigned int
-get_unitless(const sstring & name, const strstr_m & m) noexcept
+get_unitless(const Sstring & name, const Strstr_m & m) noexcept
 {
     unsigned int mv;
-    const strstr_m::const_iterator it = m.find(name);
+    const Strstr_m::const_iterator it = m.find(name);
 
     if ((it != m.end()) && (1 == sscanf(it->second.c_str(), "%u", &mv)))
         return mv;
@@ -892,7 +867,7 @@ get_unitless(const sstring & name, const strstr_m & m) noexcept
 }
 
 static void
-build_raw_pdo(const fs::path & pt, pdo_elem & a_pdo) noexcept
+build_raw_pdo(const fs::path & pt, Pdo_elem & a_pdo) noexcept
 {
     bool src_caps { a_pdo.is_source_caps_ };
     unsigned int mv, ma, mw;
@@ -911,18 +886,19 @@ build_raw_pdo(const fs::path & pt, pdo_elem & a_pdo) noexcept
         a_pdo.raw_pdo_ = 0;
         return;
     }
-    strstr_m::const_iterator it;
-    const strstr_m::const_iterator it_end { };
+    Strstr_m::const_iterator it;
+    const Strstr_m::const_iterator it_end { };
 
     switch (a_pdo.pdo_el_) {
-    case pdo_e::pdo_fixed:      // B31...B30: 00b
+    case Pdo_e::pdo_fixed:      // B31...B30: 00b
         ma = get_milliamps(src_caps ? "maximum_current" :
                                       "operational_current", ss_map);
         r_pdo = (ma / 10) & 0x3ff;
         mv = get_millivolts("voltage", ss_map);
         r_pdo |= ((mv / 50) & 0x3ff) << 10;
-        if (a_pdo.pdo_ind_ == 1) {      // only pdo 1 set bits 23 to 29
+        if (a_pdo.pdo_ind_ == 1) {      // only pdo 1 sets bits 23 to 29
             if (src_caps) {
+// epr_capable at bit 23 should be here for a fixed 5V source
                 v = get_unitless("unchunked_extended_messages_supported",
                                  ss_map);
                 if (v)
@@ -955,7 +931,7 @@ build_raw_pdo(const fs::path & pt, pdo_elem & a_pdo) noexcept
                 r_pdo |= (v & 1) << 29;
         }
         break;
-    case pdo_e::pdo_battery:    // B31...B30: 01b
+    case Pdo_e::pdo_battery:    // B31...B30: 01b
         r_pdo = 1 << 30;
         mw = get_milliwatts(src_caps ? "maximum_allowable_power" :
                                        "operational_power", ss_map);
@@ -965,7 +941,7 @@ build_raw_pdo(const fs::path & pt, pdo_elem & a_pdo) noexcept
         mv = get_millivolts("maximum_voltage", ss_map);
         r_pdo |= ((mv / 50) & 0x3ff) << 20;
         break;
-    case pdo_e::pdo_variable:   // B31...B30: 10b
+    case Pdo_e::pdo_variable:   // B31...B30: 10b
         r_pdo = 1 << 31;
         ma = get_milliamps(src_caps ? "maximum_current" :
                                       "operational_current", ss_map);
@@ -975,7 +951,7 @@ build_raw_pdo(const fs::path & pt, pdo_elem & a_pdo) noexcept
         mv = get_millivolts("maximum_voltage", ss_map);
         r_pdo |= ((mv / 50) & 0x3ff) << 20;
         break;
-    case pdo_e::apdo_pps:       // APDO: B31...B30: 11b; B29...B28: 00b [SPR]
+    case Pdo_e::apdo_pps:       // APDO: B31...B30: 11b; B29...B28: 00b [SPR]
         r_pdo = 3 << 30;
         ma = get_milliamps("maximum_current", ss_map);
         r_pdo |= (ma / 50) & 0x7f;
@@ -989,9 +965,9 @@ build_raw_pdo(const fs::path & pt, pdo_elem & a_pdo) noexcept
                 r_pdo |= (v & 1) << 27;
         }
         break;
-    case pdo_e::apdo_spr_avs:   // APDO: B31...B30: 11b; B29...B28: 10b [SPR]
+    case Pdo_e::apdo_spr_avs:   // APDO: B31...B30: 11b; B29...B28: 10b [SPR]
         break;
-    case pdo_e::apdo_epr_avs:   // APDO: B31...B30: 11b; B29...B28: 01b [EPR]
+    case Pdo_e::apdo_epr_avs:   // APDO: B31...B30: 11b; B29...B28: 01b [EPR]
         r_pdo = 3 << 30;
         r_pdo |= 1 << 28;
         mw = get_milliwatts("pdp", ss_map);
@@ -1011,8 +987,8 @@ build_raw_pdo(const fs::path & pt, pdo_elem & a_pdo) noexcept
     a_pdo.raw_pdo_ = r_pdo;
 }
 
-static sstring
-build_summary_s(const pdo_elem & a_pdo, struct opts_t * op,
+static Sstring
+build_summary_s(const Pdo_elem & a_pdo, struct Opts_t * op,
                 sgj_opaque_p jop) noexcept
 {
     bool src_caps { a_pdo.is_source_caps_ };
@@ -1044,11 +1020,11 @@ build_summary_s(const pdo_elem & a_pdo, struct opts_t * op,
 
     if (ss_map.empty())
         return "";
-    strstr_m::const_iterator it;
-    const strstr_m::const_iterator it_end { };
+    Strstr_m::const_iterator it;
+    const Strstr_m::const_iterator it_end { };
 
     switch (a_pdo.pdo_el_) {
-    case pdo_e::pdo_fixed:      // B31...B30: 00b
+    case Pdo_e::pdo_fixed:      // B31...B30: 00b
         mv = get_millivolts(v_sn, ss_map);
         sgj_js_nv_ihex_nex(jsp, jop, v_sn, mv, false, u_mv_s);
         ccp = src_caps ? max_a_sn : op_a_sn;
@@ -1057,7 +1033,7 @@ build_summary_s(const pdo_elem & a_pdo, struct opts_t * op,
         return fmt_to_str("fixed: {}.{:02} Volts, {}.{:02} Amps ({})",
                           mv / 1000, (mv % 1000) / 10, ma / 1000,
                           (ma % 1000) / 10, (src_caps ? "max" : "op"));
-    case pdo_e::pdo_battery:    // B31...B30: 01b
+    case Pdo_e::pdo_battery:    // B31...B30: 01b
         ccp = src_caps ? max_all_p_sn : op_p_sn;
         mw = get_milliwatts(ccp, ss_map);
         sgj_js_nv_ihex_nex(jsp, jop, ccp, mw, false, u_mw_s);
@@ -1071,7 +1047,7 @@ build_summary_s(const pdo_elem & a_pdo, struct opts_t * op,
                           mv / 1000, (mv % 1000) / 10,
                           mw / 1000, (mw % 1000) / 10,
                           (src_caps ? "max" : "op"));
-    case pdo_e::pdo_variable:   // B31...B30: 10b
+    case Pdo_e::pdo_variable:   // B31...B30: 10b
         ccp = src_caps ? max_a_sn : op_a_sn;
         ma = get_milliamps(ccp, ss_map);
         sgj_js_nv_ihex_nex(jsp, jop, ccp, ma, false, u_ma_s);
@@ -1085,7 +1061,7 @@ build_summary_s(const pdo_elem & a_pdo, struct opts_t * op,
                           mv / 1000, (mv % 1000) / 10,
                           ma / 1000, (ma % 1000) / 10,
                           (src_caps ? "max" : "op"));
-    case pdo_e::apdo_pps:       // APDO: B31...B30: 11b; B29...B28: 00b [SPR]
+    case Pdo_e::apdo_pps:       // APDO: B31...B30: 11b; B29...B28: 00b [SPR]
         ma = get_milliamps(max_a_sn, ss_map);
         sgj_js_nv_ihex_nex(jsp, jop, max_a_sn, ma, false, u_ma_s);
         mv_min = get_millivolts(min_v_sn, ss_map);
@@ -1102,8 +1078,8 @@ build_summary_s(const pdo_elem & a_pdo, struct opts_t * op,
                           mv / 1000, (mv % 1000) / 10,
                           ma / 1000, (ma % 1000) / 10,
                           (v ? " [PL]" : ""));
-    case pdo_e::apdo_spr_avs:   // APDO: B31...B30: 11b; B29...B28: 10b [SPR]
-    case pdo_e::apdo_epr_avs:   // APDO: B31...B30: 11b; B29...B28: 01b [EPR]
+    case Pdo_e::apdo_spr_avs:   // APDO: B31...B30: 11b; B29...B28: 10b [SPR]
+    case Pdo_e::apdo_epr_avs:   // APDO: B31...B30: 11b; B29...B28: 01b [EPR]
         mw = get_milliwatts(pdp_sn, ss_map);
         sgj_js_nv_ihex_nex(jsp, jop, pdp_sn, mw, false, u_mw_s);
         mv_min = get_millivolts(min_v_sn, ss_map);
@@ -1126,16 +1102,16 @@ build_summary_s(const pdo_elem & a_pdo, struct opts_t * op,
 
 static std::error_code
 populate_pdos(const fs::path & cap_pt, bool is_source_caps,
-              upd_dir_elem & val, const struct opts_t * op) noexcept
+              Upd_dir_elem & val, const struct Opts_t * op) noexcept
 {
     std::error_code ecc { };
-    std::vector<pdo_elem> pdo_el_v;
+    std::vector<Pdo_elem> pdo_el_v;
 
     for (fs::directory_iterator itr(cap_pt, dir_opt, ecc);
          (! ecc) && itr != end_itr;
          itr.increment(ecc) ) {
         const fs::path & pt { *itr };
-        const sstring name { filename_as_str(pt) };
+        const Sstring name { filename_as_str(pt) };
 
         if ((! name.empty()) && (isdigit(name[0]))) {
             int pdo_ind;
@@ -1145,24 +1121,24 @@ populate_pdos(const fs::path & cap_pt, bool is_source_caps,
                 const char * cp = strchr(dp, ':');
 
                 if (cp) {
-                    pdo_elem a_pdo { };
+                    Pdo_elem a_pdo { };
 
                     a_pdo.pdo_ind_ = pdo_ind;
                     a_pdo.is_source_caps_ = is_source_caps;
                     if (0 == strcmp(cp + 1, fixed_ln_sn))
-                        a_pdo.pdo_el_ = pdo_e::pdo_fixed;
+                        a_pdo.pdo_el_ = Pdo_e::pdo_fixed;
                     else if (0 == strcmp(cp + 1, batt_ln_sn))
-                        a_pdo.pdo_el_ = pdo_e::pdo_battery;
+                        a_pdo.pdo_el_ = Pdo_e::pdo_battery;
                     else if (0 == strcmp(cp + 1, vari_ln_sn))
-                        a_pdo.pdo_el_ = pdo_e::pdo_variable;
+                        a_pdo.pdo_el_ = Pdo_e::pdo_variable;
                     else if (0 == strcmp(cp + 1, pps_ln_sn))
-                        a_pdo.pdo_el_ = pdo_e::apdo_pps;
+                        a_pdo.pdo_el_ = Pdo_e::apdo_pps;
                     else if (0 == strcmp(cp + 1, spr_avs_ln_sn))
-                        a_pdo.pdo_el_ = pdo_e::apdo_spr_avs;
+                        a_pdo.pdo_el_ = Pdo_e::apdo_spr_avs;
                     else if (0 == strcmp(cp + 1, epr_avs_ln_sn))
-                        a_pdo.pdo_el_ = pdo_e::apdo_epr_avs;
+                        a_pdo.pdo_el_ = Pdo_e::apdo_epr_avs;
                     else
-                        a_pdo.pdo_el_ = pdo_e::pdo_null;
+                        a_pdo.pdo_el_ = Pdo_e::pdo_null;
 
                     a_pdo.pdo_d_p_ = pt;
                     if (op->do_long > 0)
@@ -1175,7 +1151,7 @@ populate_pdos(const fs::path & cap_pt, bool is_source_caps,
     if (ecc)
         pr3ser(-1, cap_pt, "was scanning when failed", ecc);
     if (pdo_el_v.size() > 1)
-        std::ranges::sort(pdo_el_v);
+        std::ranges::sort(pdo_el_v, {}, &Pdo_elem::pdo_ind_);
 
     if (is_source_caps)
         val.source_pdo_v_.swap(pdo_el_v);
@@ -1185,7 +1161,7 @@ populate_pdos(const fs::path & cap_pt, bool is_source_caps,
 }
 
 static std::error_code
-populate_src_snk_pdos(upd_dir_elem & val, const struct opts_t * op) noexcept
+populate_src_snk_pdos(Upd_dir_elem & val, const struct Opts_t * op) noexcept
 {
     std::error_code ec { }, ec2 { };
     const fs::path & pd_pt { val.path() };
@@ -1205,18 +1181,23 @@ populate_src_snk_pdos(upd_dir_elem & val, const struct opts_t * op) noexcept
     return ec ? ec : ec2;
 }
 
-static void
-process_pw_d_dir_mode(const tc_dir_elem * elemp, bool is_partn, int clen,
+static const char * tc_pom_def = "{5V, 0.9A}";
+static const char * tc_pom_5v1_5a = "{5V, 1.5A}";
+static const char * tc_pom_5v3_0a = "{5V, 3.0A}";
+
+static const char *
+process_pw_d_dir_mode(const Tc_dir_elem * elemp, bool is_partn, int clen,
                       char * c, bool data_dir) noexcept
 {
     const bool dd { data_dir && elemp->data_role_known_ };
     const auto & pom { elemp->pow_op_mode_ };
+    const char * resp = nullptr;
     static const char * dir_tail { "====" };
     static const char * s_tail { "==" };
     static const char * p_left { "<|" };
     static const char * p_right { "|>" };
 
-    if (pom == pw_op_mode_e::usb_pd) {
+    if (pom == Pw_op_mode_e::usb_pd) {
         if (elemp->source_sink_known_) {
             if (is_partn) {
                 if (elemp->is_source_) {
@@ -1248,31 +1229,45 @@ process_pw_d_dir_mode(const tc_dir_elem * elemp, bool is_partn, int clen,
         // in non-PD world: host implies source
         if (elemp->is_host_) {
             switch (pom) {
-            case pw_op_mode_e::def:
-                snprintf(c, clen, " > {5V, 0.9A}  ");
+            case Pw_op_mode_e::def:
+                resp = tc_pom_def;
                 break;
-            case pw_op_mode_e::v5i1_5:
-                snprintf(c, clen, " > {5V, 1.5A}  ");
+            case Pw_op_mode_e::v5i1_5:
+                resp = tc_pom_5v1_5a;
                 break;
-            case pw_op_mode_e::v5i3_0:
-                snprintf(c, clen, " > {5V, 3.0A}  ");
+            case Pw_op_mode_e::v5i3_0:
+                resp = tc_pom_5v3_0a;
                 break;
            default:
                 if (lsucpd_verbose > 0)
                     pr2serr("unexpected power_operation_mode "
                             "[%d]\n",
                             static_cast<int>(pom));
-                snprintf(c, clen, " >     ");
                 break;
             }
-        } else
-            snprintf(c, clen, " <     ");
+            if (elemp->partner_ind_ < 0) {
+                snprintf(c, clen, " <> ");
+                resp = nullptr;
+            } else if (dd)
+                snprintf(c, clen, " %s%s>> ", p_right, s_tail);
+            else
+                snprintf(c, clen, " %s>> ", dir_tail);
+        } else {  /* not host and not PD */
+            // snprintf(c, clen, " <     ");
+            if (elemp->partner_ind_ < 0)
+                snprintf(c, clen, " <> ");
+            else if (dd)
+                snprintf(c, clen, " <<%s%s ", s_tail, p_left);
+            else
+                snprintf(c, clen, " <<%s ", dir_tail);
+        }
     } else
         snprintf(c, clen, "   ");
+    return resp;
 }
 
 static bool
-pd_is_partner(int pd_inum, const struct opts_t * op) noexcept
+pd_is_partner(int pd_inum, const struct Opts_t * op) noexcept
 {
     for (const auto& entry : op->tc_de_v) {
         if (pd_inum == entry.pd_inum_)
@@ -1282,7 +1277,7 @@ pd_is_partner(int pd_inum, const struct opts_t * op) noexcept
 }
 
 static std::error_code
-list_port(const tc_dir_elem & entry, struct opts_t * op,
+list_port(const Tc_dir_elem & entry, struct Opts_t * op,
           sgj_opaque_p jop) noexcept
 {
     bool want_alt_md = (op->do_long > 1);
@@ -1292,7 +1287,7 @@ list_port(const tc_dir_elem & entry, struct opts_t * op,
     sgj_opaque_p jo2p;
     sgj_opaque_p jap;
     const fs::path & pt { entry.path() };
-    const sstring basename { filename_as_str(pt) };
+    const Sstring basename { filename_as_str(pt) };
     const bool is_ptner = entry.is_partner();
 
     if (entry.pd_inum_ >= 0) {
@@ -1317,9 +1312,9 @@ list_port(const tc_dir_elem & entry, struct opts_t * op,
             jap = sgj_named_subarray_r(jsp, jop, "alternate_mode_list");
             for (unsigned int k = 0; k < n_a_m; ++k) {
                 const auto alt_md_pt { entry.path() /
-                            sstring(basename + "." + std::to_string(k)) };
+                            Sstring(basename + "." + std::to_string(k)) };
                 if (fs::is_directory(alt_md_pt, ec)) {
-                    strstr_m nv_m;
+                    Strstr_m nv_m;
 
                     jo2p = sgj_new_unattached_object_r(jsp);
                     ec = map_d_regu_files(alt_md_pt, nv_m);
@@ -1339,18 +1334,19 @@ list_port(const tc_dir_elem & entry, struct opts_t * op,
         if (ec)
             pr3ser(-1, pt, "not symlink to directory", ec);
     }
+
     return ec;
 }
 
 static std::error_code
-list_pd(int pd_num, const upd_dir_elem & upd_d_el,
-        struct opts_t * op, sgj_opaque_p jop) noexcept
+list_pd(int pd_num, const Upd_dir_elem & upd_d_el,
+        struct Opts_t * op, sgj_opaque_p jop) noexcept
 {
     std::error_code ec { };
     sgj_state * jsp { &op->json_st };
     sgj_opaque_p jo2p { };
     sgj_opaque_p jo3p { };
-    sstring s { "pd" + std::to_string(pd_num) };
+    Sstring s { "pd" + std::to_string(pd_num) };
 
     if (upd_d_el.source_pdo_v_.empty())
         sgj_hr_pri(jsp, "> pd{}: has NO {}\n", pd_num, src_cap_s);
@@ -1358,7 +1354,7 @@ list_pd(int pd_num, const upd_dir_elem & upd_d_el,
         jo2p = sgj_snake_named_subobject_r(jsp, jop, src_cap_s);
         sgj_hr_pri(jsp, "> pd{}: {}:\n", pd_num, src_cap_s);
         for (const auto& a_pdo : upd_d_el.source_pdo_v_) {
-            const sstring pdo_nm { filename_as_str(a_pdo.pdo_d_p_) };
+            const Sstring pdo_nm { filename_as_str(a_pdo.pdo_d_p_) };
 
             jo3p = sgj_snake_named_subobject_r(jsp, jo2p, pdo_nm.c_str());
             if (op->do_caps == 1) {
@@ -1378,7 +1374,7 @@ list_pd(int pd_num, const upd_dir_elem & upd_d_el,
             else
                 sgj_hr_pri(jsp, "  >> {}\n", pdo_nm);
             if (a_pdo.ascii_pdo_m_.empty()) {
-                strstr_m  map_io;
+                Strstr_m  map_io;
 
                 ec = map_d_regu_files(a_pdo.pdo_d_p_, map_io);
                 if (ec) {
@@ -1411,7 +1407,7 @@ list_pd(int pd_num, const upd_dir_elem & upd_d_el,
         jo2p = sgj_snake_named_subobject_r(jsp, jop, sink_cap_s);
         sgj_hr_pri(jsp, ">  pd{}: {}:\n", pd_num, sink_cap_s);
         for (const auto & a_pdo : upd_d_el.sink_pdo_v_) {
-            const sstring pdo_nm { filename_as_str(a_pdo.pdo_d_p_) };
+            const Sstring pdo_nm { filename_as_str(a_pdo.pdo_d_p_) };
 
             jo3p = sgj_snake_named_subobject_r(jsp, jo2p, pdo_nm.c_str());
             if (op->do_caps == 1) {
@@ -1431,7 +1427,7 @@ list_pd(int pd_num, const upd_dir_elem & upd_d_el,
             else
                 sgj_hr_pri(jsp, "   >> {}\n", pdo_nm);
             if (a_pdo.ascii_pdo_m_.empty()) {
-                strstr_m  map_io;
+                Strstr_m  map_io;
 
                 ec = map_d_regu_files(a_pdo.pdo_d_p_, map_io);
                 if (ec) {
@@ -1456,11 +1452,46 @@ list_pd(int pd_num, const upd_dir_elem & upd_d_el,
     return ec;
 }
 
-/* Populates op->tc_de_v[0..n-1] {vector of 'struct tc_dir_elem' objects} with
+// Given a path to a port<n>[-partner] directory in /sys find all
+// sub-directories that match the glob pattern in the filt argument.
+// For example "+([0-9])-+([0-9])*" matches "3-5". Push matches onto the
+// back of the match_v vector. So match_v may need to be cleared before
+// this function is invoked.
+static std::error_code
+scan_for_usb_devs(const fs::path & port_de, const Sstring & filt,
+                  Svector & match_v) noexcept
+{
+    std::error_code ec { };
+    std::error_code ecc { };
+    int res;
+
+    for (fs::directory_iterator itr(port_de, dir_opt, ecc);
+         (! ecc) && itr != end_itr;
+         itr.increment(ecc) ) {
+        const fs::path & pt { itr->path() };
+        const Sstring & fn { filename_as_str(pt) };
+
+        if (itr->is_directory(ec)) {
+            res = fnmatch(filt.c_str(), fn.c_str(), FNM_EXTMATCH);
+            if (0 == res) {
+                pr3ser(4, fn, "<<< matched", { });
+                match_v.push_back(pt);
+            } else if (res != FNM_NOMATCH)
+                print_err(-1, "{}: failed in fnmatch(), string: {}",
+                          __func__, fn);
+        } else if (ec)
+            pr3ser(-1, pt, "failed in is_directory()", ec);
+    }
+    if (ecc)
+        pr3ser(-1, filename_as_str(port_de), "directory_iterator failed", ecc);
+    return ecc;
+}
+
+/* Populates op->tc_de_v[0..n-1] {vector of 'struct Tc_dir_elem' objects} with
  * initial class/typec sysfs information. Any users of op->tc_de_v[0..n-1]
  * need this function called first. */
 static std::error_code
-scan_for_typec_obj(bool & ucsi_psup_possible, struct opts_t * op) noexcept
+scan_for_typec_obj(bool & ucsi_psup_possible, struct Opts_t * op) noexcept
 {
     std::error_code ec { };
     std::error_code ecc { };    // only use for directory_iterator failure
@@ -1470,19 +1501,18 @@ scan_for_typec_obj(bool & ucsi_psup_possible, struct opts_t * op) noexcept
          (! ecc) && itr != end_itr;
          itr.increment(ecc) ) {
         const fs::path & it_pt { itr->path() };
-        const sstring basename = it_pt.filename();
+        const Sstring basename = it_pt.filename();
 
         pr3ser(4, basename, "filename() of entry in /sys/class/typec");
         const char * base_s = basename.data();
-        tc_dir_elem de { *itr };
+        Tc_dir_elem de { *itr };
 
         if (itr->is_directory(ec) && itr->is_symlink(ec)) {
-
             if (1 != sscanf(base_s, "port%u", &de.port_num_)) {
                 pr3ser(0, it_pt, "unable to decode 'port<num>', skip");
                 continue;
             } else {
-                de.match_str_ = sstring("p") + std::to_string(de.port_num_);
+                de.match_str_ = Sstring("p") + std::to_string(de.port_num_);
                 if (strstr(base_s, "partner")) {
                     // needs C++23: if (basename.contains("partner"))
                     ec = map_d_regu_files(it_pt, de.tc_sdir_reg_m);
@@ -1505,10 +1535,14 @@ scan_for_typec_obj(bool & ucsi_psup_possible, struct opts_t * op) noexcept
                                                          de.is_host_);
                 }
             }
+            if (op->do_usb_devs > 0) {
+                de.tc_usb_dev_v.clear();
+                scan_for_usb_devs(de, "+([0-9])-+([0-9])*", de.tc_usb_dev_v);
+            }
             fs::path pt { it_pt / upd_sn };
 
             if (fs::exists(pt, ec)) {
-                sstring attr;
+                Sstring attr;
                 int k;
 
                 de.upd_dir_exists_ = true;
@@ -1517,7 +1551,7 @@ scan_for_typec_obj(bool & ucsi_psup_possible, struct opts_t * op) noexcept
                     pr3ser(-1, pt, "failed to canonize", ec);
                     continue;
                 }
-                sstring pd_x { c_pt.filename() };
+                Sstring pd_x { c_pt.filename() };
                 if (1 != sscanf(pd_x.c_str(), "pd%d", &k)) {
                     pr3ser(-1, pd_x, "sscanf could find match");
                 } else
@@ -1530,11 +1564,11 @@ scan_for_typec_obj(bool & ucsi_psup_possible, struct opts_t * op) noexcept
                         pr3ser(-1, itr->path(), "returned by get_value()",
                                ec);
                     } else
-                        print_err(3, "{}: power_role: {:s}\n", __func__,
-                                  attr);
+                        print_err(3, "{}: {}: power_role: {:s}\n",
+                                  __func__, filename_as_str(it_pt), attr);
                 }
             }
-        } else {
+        } else {       // not a symlink to a directory
             if (ec) {
                 pr3ser(-1, itr->path(), "not symlink to directory", ec);
                 continue;
@@ -1547,14 +1581,14 @@ scan_for_typec_obj(bool & ucsi_psup_possible, struct opts_t * op) noexcept
     return ecc;
 }
 
-/* Further populates op->tc_de_v[0..n-1] {vector of 'struct tc_dir_elem'
- * objects} with information from class/usb_power_delivery/. Users of
- * op->tc_de_v[0..n-1] may need this function called (but scan_for_typec_obj()
- * should still be called before this function). */
+/* Populates op->upd_de_m[pd_number] {map of int (pd number) to 'struct
+ * Upd_dir_elem' objects} with information from class/usb_power_delivery/.
+ * Users of that map will need this function called first (but
+ * scan_for_typec_obj() should still be called before this function). */
 static std::error_code
-scan_for_upd_obj(struct opts_t * op) noexcept
+build_upd_map(struct Opts_t * op) noexcept
 {
-    bool want_ucc = op->do_data_dir;
+    bool want_ucc = op->do_data_dir; // unreliable USB Communications Capable
     std::error_code ec { };
     std::error_code ecc { };
 
@@ -1568,10 +1602,10 @@ scan_for_upd_obj(struct opts_t * op) noexcept
             if (1 != sscanf(pt.filename().c_str(), "pd%d", &k))
                 pr2ser(-1, "unable to find 'pd<num>' to decode");
             else {
-                upd_dir_elem ue(*itr, pd_is_partner(k, op));
+                Upd_dir_elem ue(*itr, pd_is_partner(k, op));
 
                 if (want_ucc && ue.is_partner_) {
-                    sstring attr;
+                    Sstring attr;
 
                     ec = get_value(*itr, src_ucc_s, attr);
                     if (ec)
@@ -1585,7 +1619,7 @@ scan_for_upd_obj(struct opts_t * op) noexcept
                         }
                     }
                 }
-                ue.match_str_.assign(sstring("pd") + std::to_string(k));
+                ue.match_str_.assign(Sstring("pd") + std::to_string(k));
                 op->upd_de_m.emplace(std::make_pair(k, ue));
             }
         } else if (ec)
@@ -1596,8 +1630,9 @@ scan_for_upd_obj(struct opts_t * op) noexcept
     return ecc;
 }
 
+// This JSON output can viewed as an internal (structure) object tree.
 static void
-do_my_join(struct opts_t * op, sgj_opaque_p jop) noexcept
+do_lsucpd_internal(struct Opts_t * op, sgj_opaque_p jop) noexcept
 {
     sgj_state * jsp { &op->json_st };
     sgj_opaque_p jo2p { };
@@ -1605,7 +1640,10 @@ do_my_join(struct opts_t * op, sgj_opaque_p jop) noexcept
 
     jap = sgj_named_subarray_r(jsp, jop, "typec_dir_elem_list");
     for (const auto& elem : op->tc_de_v) {
+        const int pd_num { elem.pd_inum_ };
+
         jo2p = sgj_new_unattached_object_r(jsp);
+        sgj_js_nv_s(jsp, jo2p, "directory", elem.path().c_str());
         sgj_js_nv_i(jsp, jo2p, "partner", elem.partner_);
         sgj_js_nv_i(jsp, jo2p, "upd_dir_exists", elem.upd_dir_exists_);
         sgj_js_nv_i(jsp, jo2p, "source_sink_known", elem.source_sink_known_);
@@ -1614,11 +1652,21 @@ do_my_join(struct opts_t * op, sgj_opaque_p jop) noexcept
         sgj_js_nv_i(jsp, jo2p, "is_host", elem.is_host_);
         sgj_js_nv_i(jsp, jo2p, "pow_op_mode", (unsigned int)elem.pow_op_mode_);
         sgj_js_nv_i(jsp, jo2p, "port_num", elem.port_num_);
-        sgj_js_nv_i(jsp, jo2p, "pd_inum", elem.pd_inum_);
+        sgj_js_nv_i(jsp, jo2p, "pd_inum", pd_num);
         sgj_js_nv_i(jsp, jo2p, "partner_ind", elem.partner_ind_);
-        sgj_js_nv_s(jsp, jo2p, "match_str_", elem.match_str_.c_str());
+        sgj_js_nv_s(jsp, jo2p, "match_str", elem.match_str_.c_str());
+        if (elem.tc_usb_dev_v.size() > 0) {
+            auto ja2p = sgj_named_subarray_r(jsp, jo2p, "usb_device_list");
 
+            for (const auto& pt : elem.tc_usb_dev_v) {
+                auto jo3p = sgj_new_unattached_object_r(jsp);
 
+                sgj_js_nv_s(jsp, jo3p, "directory", pt.c_str());
+                sgj_js_nv_s(jsp, jo3p, "bus_port",
+                            filename_as_str(pt).c_str());
+                sgj_js_nv_o(jsp, ja2p, nullptr, jo3p);
+            }
+        }
         sgj_js_nv_o(jsp, jap, nullptr, jo2p);
     }
 }
@@ -1633,7 +1681,7 @@ static const uint8_t pdo_part_map[] = {9, 0, 13, 13, 17, 17, 21,
 static const uint8_t rdo_part_map[] = {30, 40, 50, 58};
 
 static void
-pdo2str(uint32_t a_pdo, bool ind1, bool is_src, sstring & out) noexcept
+pdo2str(uint32_t a_pdo, bool ind1, bool is_src, Sstring & out) noexcept
 {
     bool fl_cont { false };
     uint8_t k, num_b_typ, nb;
@@ -1641,7 +1689,7 @@ pdo2str(uint32_t a_pdo, bool ind1, bool is_src, sstring & out) noexcept
     uint32_t l_pdo, mask;
     if (ind1)
         pp_map_ind |= 1;
-    const struct do_fld_desc_t * do_fld_p =
+    const struct Do_fld_desc_t * do_fld_p =
                          pdo_part_a + pdo_part_map[pp_map_ind];
 
     k = static_cast<uint8_t>(a_pdo >> 30);
@@ -1690,23 +1738,23 @@ pdo2str(uint32_t a_pdo, bool ind1, bool is_src, sstring & out) noexcept
         nb = num_b_typ & 0xf;
         mask = (1 << nb) - 1;
         l_pdo &= mask;
-        out += sstring("  ") + sstring(pdo_str[do_fld_p->nam_str_off]);
+        out += Sstring("  ") + Sstring(pdo_str[do_fld_p->nam_str_off]);
         uint8_t mult = do_fld_p->mult;
         uint16_t l_pdo16 = (uint16_t)l_pdo;
         if (mult) {
-            arr_of_ch<16> b { };
+            Arr_of_ch<16> bb { };
 
             l_pdo16 *= mult;
-            snprintf(b.d(), b.sz(), "=%u.%02u\n",
+            snprintf(bb.d(), bb.sz(), "=%u.%02u\n",
                      l_pdo16 / 100, l_pdo16 % 100);
-            out += sstring(b.d());
+            out += Sstring(bb.d());
         } else
-            out += sstring("=") + std::to_string(l_pdo16) + sstring("\n");
+            out += Sstring("=") + std::to_string(l_pdo16) + Sstring("\n");
     }
 }
 
 static int
-do_pdo_opt(sstring & o_str, struct opts_t * op) noexcept
+do_pdo_opt(Sstring & o_str, struct Opts_t * op) noexcept
 {
     int64_t n = sg_get_llnum(op->pdo_opt_p);
     const char * snk_src_s = op->is_pdo_snk ? "snk" : "src";
@@ -1735,7 +1783,7 @@ do_pdo_opt(sstring & o_str, struct opts_t * op) noexcept
 
 /* RDOs are always sent by the sink to the source */
 static void
-rdo2str(uint32_t a_rdo, pdo_e ref_pdo, sstring & out) noexcept
+rdo2str(uint32_t a_rdo, Pdo_e ref_pdo, Sstring & out) noexcept
 {
     bool fl_cont { false };
     bool check_giveback { false };
@@ -1744,33 +1792,33 @@ rdo2str(uint32_t a_rdo, pdo_e ref_pdo, sstring & out) noexcept
     uint32_t l_rdo, mask;
 
     switch (ref_pdo) {
-    case pdo_e::pdo_fixed:
+    case Pdo_e::pdo_fixed:
         ind = rdo_part_map[0];
         check_giveback = true;
         break;
-    case pdo_e::pdo_battery:
+    case Pdo_e::pdo_battery:
         ind = rdo_part_map[1];
         check_giveback = true;
         break;
-    case pdo_e::pdo_variable:
+    case Pdo_e::pdo_variable:
         ind = rdo_part_map[0]; // Fixed and Variable RDOs have same structure
         check_giveback = true;
         break;
-    case pdo_e::apdo_pps:
+    case Pdo_e::apdo_pps:
         ind = rdo_part_map[2];
         break;
-    case pdo_e::apdo_epr_avs:
+    case Pdo_e::apdo_epr_avs:
         ind = rdo_part_map[3];
         break;
-    case pdo_e::apdo_spr_avs:
+    case Pdo_e::apdo_spr_avs:
         ind = rdo_part_map[3];  // PD r3.2 v1.0 table 6.16 needs correction
         break;
     default:
         out = "RDO refers to bad PDO type\n";
         return;
     }
-    out = sstring("RDO for ") + pdo_e_to_str(ref_pdo) + "\n";
-    const struct do_fld_desc_t * do_fld_p = pdo_part_a + ind;
+    out = Sstring("RDO for ") + pdo_e_to_str(ref_pdo) + "\n";
+    const struct Do_fld_desc_t * do_fld_p = pdo_part_a + ind;
 
     for (k = 0; true; ++k, ++do_fld_p) {
         num_b_typ = do_fld_p->num_bits_typ;
@@ -1795,11 +1843,11 @@ rdo2str(uint32_t a_rdo, pdo_e ref_pdo, sstring & out) noexcept
         nb = num_b_typ & 0xf;
         mask = (1 << nb) - 1;
         l_rdo &= mask;
-        out += sstring("  ") + sstring(pdo_str[do_fld_p->nam_str_off]);
+        out += Sstring("  ") + Sstring(pdo_str[do_fld_p->nam_str_off]);
         uint8_t mult = do_fld_p->mult;
         uint16_t l_rdo16 = (uint16_t)l_rdo;
         if (mult) {
-            arr_of_ch<16> b { };
+            Arr_of_ch<16> bb { };
 
             if (0xff == mult) {
                 // special case for AVS, bottom 2 lsb_s of voltage always 0
@@ -1807,16 +1855,16 @@ rdo2str(uint32_t a_rdo, pdo_e ref_pdo, sstring & out) noexcept
                 l_rdo16 = (l_rdo16 >> 1) * 25;
             } else
                 l_rdo16 *= mult;
-            snprintf(b.d(), b.sz(), "=%u.%02u\n",
+            snprintf(bb.d(), bb.sz(), "=%u.%02u\n",
                      l_rdo16 / 100, l_rdo16 % 100);
-            out += sstring(b.d());
+            out += Sstring(bb.d());
         } else
-            out += sstring("=") + std::to_string(l_rdo16) + sstring("\n");
+            out += Sstring("=") + std::to_string(l_rdo16) + Sstring("\n");
     }
 }
 
 static int
-do_rdo_opt(sstring & o_str, struct opts_t * op) noexcept
+do_rdo_opt(Sstring & o_str, struct Opts_t * op) noexcept
 {
     int64_t n = sg_get_llnum(op->rdo_opt_p);
 
@@ -1827,27 +1875,27 @@ do_rdo_opt(sstring & o_str, struct opts_t * op) noexcept
         print_err(-1, "argument to --rdo=RDO does fit in 32 bits\n");
         return 1;
     }
-    pdo_e ref_pdo { };
+    Pdo_e ref_pdo { };
     if (const char * ccp = strchr(op->rdo_opt_p, ',')) {
         switch (toupper(*(ccp + 1))) {
         case 'F':
-            ref_pdo = pdo_e::pdo_fixed;
+            ref_pdo = Pdo_e::pdo_fixed;
             break;
         case 'B':
-            ref_pdo = pdo_e::pdo_battery;
+            ref_pdo = Pdo_e::pdo_battery;
             break;
         case 'V':
-            ref_pdo = pdo_e::pdo_variable;
+            ref_pdo = Pdo_e::pdo_variable;
             break;
         case 'P':
-            ref_pdo = pdo_e::apdo_pps;
+            ref_pdo = Pdo_e::apdo_pps;
             break;
         case 'A':
         case 'E':
-            ref_pdo = pdo_e::apdo_epr_avs;
+            ref_pdo = Pdo_e::apdo_epr_avs;
             break;
         case 'S':
-            ref_pdo = pdo_e::apdo_spr_avs;
+            ref_pdo = Pdo_e::apdo_spr_avs;
             break;
         default:
             print_err(-1, "--rdo=<rdo>,REF expects F, B, V, P, A, E or S\n");
@@ -1862,24 +1910,113 @@ do_rdo_opt(sstring & o_str, struct opts_t * op) noexcept
     return 0;
 }
 
-/* Sorts op->tc_de_v[0..n-1] {vector of 'struct tc_dir_elem' objects} in
+/* Looks frightening but because this function appends to spw_a and that
+ * is a "class template with a non-type template parameter (NTTP)" then
+ * this function needs a "constant template parameter" of N . Of all the
+ * USB parameters available, this function chooses those most related
+ * to USB-C such as speed and lanes used. The other limit is what fits
+ * comfortably on a single line. */
+template <std::size_t N>
+static std::error_code
+usb_dev_get_values(const Sstring & pt, const Sstring & match_str,
+                   const Sstring & pad, SafePrintfWrapper<N> & spw_a)
+{
+    Sstring idVendor, idProd, speed, tlanes, rlanes, prod;
+    std::error_code ec { };
+    const auto & fn { filename_as_str(pt) };
+
+    std::error_code ecc = get_value(pt, "idVendor", idVendor);
+    if (ecc) {
+        pr3ser(2, pt + "/idVendor", "get_value() failed", ecc);
+        ec = ecc;
+    }
+    ecc = get_value(pt, "idProduct", idProd);
+    if (ecc && ! ec)
+        ec = ecc;
+    if (match_str.empty())
+        spw_a.scnpr("\n%s %s  %s:%s", pad.c_str(), fn.c_str(),
+                    idVendor.c_str(), idProd.c_str());
+    else
+        spw_a.scnpr("\n%s%s: %s  %s:%s", pad.c_str(), match_str.c_str(),
+                    fn.c_str(), idVendor.c_str(), idProd.c_str());
+    ecc = get_value(pt, "speed", speed);
+    if (ecc && ! ec)
+        ec = ecc;
+    ecc = get_value(pt, "tx_lanes", tlanes);
+    if (ecc && ! ec)
+        ec = ecc;
+    ecc = get_value(pt, "rx_lanes", rlanes);
+    if (ecc && ! ec)
+        ec = ecc;
+    spw_a.scnpr("  speed,tx/rx_lanes=%s,%s/%s", speed.c_str(),
+                tlanes.c_str(), rlanes.c_str());
+    ecc = get_value(pt, "product", prod);
+    if (ecc && ! ec)
+        ec = ecc;
+    spw_a.scnpr("  %.20s", prod.c_str());
+    return ec;
+}
+
+/* Loops over all USB devices found in a single Type C directory element
+ * and appends a single line onto spw_a for each USB device found. See
+ * usb_dev_get_values() description for why a template function is needed. */
+template <std::size_t N>
+static void
+usb_dev_list(struct Tc_dir_elem * elemp, SafePrintfWrapper<N> & spw_a,
+             struct Opts_t * op) noexcept
+{
+    std::error_code ecc { };
+
+    for (size_t m = 0; m < elemp->tc_usb_dev_v.size(); ++m) {
+        Sstring pt = elemp->tc_usb_dev_v[m];
+
+        ecc = usb_dev_get_values(pt, elemp->match_str_, "    ", spw_a);
+        if (ecc)
+            pr3ser(1, pt, "usb_dev_get_value() failed", ecc);
+
+        if (spw_a.full())
+            break;
+        if (op->do_usb_devs > 1) {
+            Svector devs_2lev_v;
+
+            ecc = scan_for_usb_devs(pt, "+([0-9])-+([0-9]).+([0-9])*",
+                                    devs_2lev_v);
+            if (ecc)
+                pr3ser(1, pt, "scan_for_usb_devs() failed", ecc);
+            if (devs_2lev_v.size() > 0) {
+                Sstring ppad { "          " };
+
+                for (const auto & l2pt : devs_2lev_v) {
+                    ecc = usb_dev_get_values(l2pt, "", ppad, spw_a);
+                    if (ecc)
+                        pr3ser(2, pt, "inner usb_dev_get_value() failed",
+                               ecc);
+                }
+            }
+        }
+    }
+    if (spw_a.full())
+        pr3ser(-1, elemp->match_str_, "char array full", ecc);
+}
+
+/* Sorts op->tc_de_v[0..n-1] {vector of 'struct Tc_dir_elem' objects} in
  * ascending order so that port<m>-partner entry will appear immediately
  * after the port<m>. Build a summary map [port_num->summary_string]. */
 static int
-primary_scan(bool ucsi_psup_possible, struct opts_t * op) noexcept
+primary_scan(bool ucsi_psup_possible, struct Opts_t * op) noexcept
 {
     size_t sz { op->tc_de_v.size() };
-    tc_dir_elem * elemp { };
-    arr_of_ch<128> b { };
+    Tc_dir_elem * elemp { };
+    const char * non_pd_s = nullptr;
+    SafePrintfWrapper<600> spw_a;
 
     if (sz > 1) {
         std::ranges::sort(op->tc_de_v);
         // assume, for example, "port3" precedes "port3-partner" after sort
         // sort order example using match string: p0, p0p, p1, p2, p2p
 
-        tc_dir_elem * prev_elemp = nullptr;
-        [[maybe_unused]] int b_ind { };
-        arr_of_ch<32> c;
+        Tc_dir_elem * prev_elemp = nullptr;
+        Arr_of_ch<32> cc;
 
 // xxxxxxxxxxx  Testing: turn on (was 0)
 #if 0
@@ -1890,7 +2027,7 @@ primary_scan(bool ucsi_psup_possible, struct opts_t * op) noexcept
                  (! ecc) && itr != end_itr;
                  itr.increment(ecc) ) {
                 const fs::path & pt { itr->path() };
-                const sstring & name { pt.filename() };
+                const Sstring & name { pt.filename() };
 // xxxxxxxxxxx  missing code for power_supply object; don't know which one.
 // xxxxxxxxxxx  Would like symlink from pd object to corresponding
 // xxxxxxxxxxx  power_supply. Also having the active RDO (in hex ?) would
@@ -1906,7 +2043,11 @@ pr2serr("%s: pt: %s\n", __func__, filename_as_str(pt).c_str());
         }
 #endif
 
-        // associate ports (and possible partners) with pd objects
+        // associate ports (and possible partners) with pd objects.
+        // Note that with regard to output of this utility, in the typical
+        // case, to get one line of output, two iterations around this loop
+        // are required. For example, one for port3, the next one for
+        //  port3-partner, outputting: "port3 [pd3]  <<====  partner [pd5]"
         for (size_t k = 0; k < sz; ++k, prev_elemp = elemp) {
             int j;
 
@@ -1929,68 +2070,77 @@ pr2serr("%s: pt: %s\n", __func__, filename_as_str(pt).c_str());
                             it->second.usb_comms_incapable_)
                             ddir = false;
                     }
-                    process_pw_d_dir_mode(prev_elemp, true, c.sz(), c.d(),
-                                          ddir);
-                    b_ind += sg_scn3pr(b.d(), b.sz(), b_ind, "%s partner ",
-                                       c.d());
+                    non_pd_s = process_pw_d_dir_mode(prev_elemp, true,
+                                                     cc.sz(), cc.d(), ddir);
+                    spw_a.scnpr("%s partner ", cc.d());
                     if (j > 0) {        // PDO of 0x0000 is place holder
-                        b_ind += sg_scn3pr(b.d(), b.sz(), b_ind, "[pd%d] ",
-                                           j);
+                        spw_a.scnpr("[pd%d] ", j);
+                    }
+                    if (non_pd_s)
+                        spw_a.scnpr("%s ", non_pd_s);
+                    if (elemp->tc_usb_dev_v.size() > 0) {
+                        usb_dev_list(elemp, spw_a, op);
                     }
                     op->summ_out_m.emplace(
-                        std::make_pair(prev_elemp->port_num_, b.d()));
-                    b_ind = 0;
+                        std::make_pair(prev_elemp->port_num_, spw_a.cz()));
                 } else {
-                    // don't expect partner as first element
+                    // don't expect partner as first element (k == 0)
                     op->summ_out_m.emplace(
                         std::make_pair(elemp->port_num_, "logic_err"));
-                    b_ind = 0;
                 }
             } else {    /* local (machine's) typec port */
-                if (prev_elemp && (b_ind > 0)) {
-                    process_pw_d_dir_mode(prev_elemp, false, c.sz(), c.d(),
-                                          op->do_data_dir);
-                    sg_scn3pr(b.d(), b.sz(), b_ind, "%s", c.d());
+                if (prev_elemp && (spw_a.index() > 0)) {
+                    non_pd_s = process_pw_d_dir_mode(prev_elemp, false,
+                                                     cc.sz(), cc.d(),
+                                                     op->do_data_dir);
+                    spw_a.scnpr("%s", cc.d());
+                    if (non_pd_s)
+                        spw_a.scnpr(" %s", non_pd_s);
                     op->summ_out_m.emplace(
-                        std::make_pair(prev_elemp->port_num_, b.d()));
-                    b_ind = 0;
+                        std::make_pair(prev_elemp->port_num_, spw_a.cz()));
                 }
-                b_ind += sg_scn3pr(b.d(), b.sz(), b_ind, " port%d ",
-                                   elemp->port_num_);
-                if (j >= 0)
-                    b_ind += sg_scn3pr(b.d(), b.sz(), b_ind, "[pd%d] ", j);
+                spw_a.scnpr(" port%d ", elemp->port_num_);
+                if (j >= 0) {
+                    spw_a.scnpr("[pd%d] ", j);
+                }
             }
         }       // <<<<<<<<<<<  end of long classic for loop
+
         // above loop needs potential cleanup on exit and that follows
-        if (prev_elemp && (b_ind > 0)) {
-            process_pw_d_dir_mode(prev_elemp, false, c.sz(), c.d(),
-                                  op->do_data_dir);
-            sg_scn3pr(b.d(), b.sz(), b_ind, "%s", c.d());
+        if (prev_elemp && (spw_a.index() > 0)) {
+            non_pd_s = process_pw_d_dir_mode(prev_elemp, false, cc.sz(),
+                                             cc.d(), op->do_data_dir);
+            spw_a.scnpr("%s", cc.d());
+            if (non_pd_s)
+                spw_a.scnpr(" %s", non_pd_s);
             op->summ_out_m.emplace(std::make_pair(prev_elemp->port_num_,
-                                   b.d()));
+                                   spw_a.cz()));
         }
     } else if (sz == 1) {
-        int b_ind { };
-        arr_of_ch<32> c { };
+        Arr_of_ch<32> cc { };
 
         elemp = &op->tc_de_v[0];
         int j = elemp->pd_inum_;
 
-        b_ind += sg_scn3pr(b.d(), b.sz(), b_ind, " port%d ",
-                           elemp->port_num_);
-        if (j >= 0)
-            b_ind += sg_scn3pr(b.d(), b.sz(), b_ind, "[pd%d] ", j);
-        process_pw_d_dir_mode(elemp, false, c.sz(), c.d(), op->do_data_dir);
-        sg_scn3pr(b.d(), b.sz(), b_ind, "%s", c.d());
-        op->summ_out_m.emplace(std::make_pair(elemp->port_num_, b.d()));
+        spw_a.scnpr(" port%d ", elemp->port_num_);
+        if (j >= 0) {
+             spw_a.scnpr("[pd%d] ", j);
+        }
+        non_pd_s = process_pw_d_dir_mode(elemp, false, cc.sz(), cc.d(),
+                                         op->do_data_dir);
+        spw_a.scnpr("%s", cc.d());
+        if (non_pd_s)
+            spw_a.scnpr(" %s", non_pd_s);
+        op->summ_out_m.emplace(std::make_pair(elemp->port_num_, spw_a.cz()));
     }
     return 0;
 }
 
 static void
-do_filter(bool filter_for_port, bool filter_for_pd,
-          struct opts_t * op, sgj_opaque_p jop) noexcept
+do_filter(struct Opts_t * op, sgj_opaque_p jop) noexcept
 {
+    int res;
+    int a_match = false;
     std::error_code ec { };
     sgj_state * jsp { &op->json_st };
     sgj_opaque_p jo2p { };
@@ -1998,84 +2148,73 @@ do_filter(bool filter_for_port, bool filter_for_pd,
     sgj_opaque_p jo4p { };
     sgj_opaque_p jap { };
 
-    if (filter_for_port) {
-        for (const auto& filt : op->filter_port_v) {
-            sregex pat;     // standard say this is noexcept
-
-            regex_ctor_noexc(pat, filt, std::regex_constants::grep |
-                                        std::regex_constants::icase, ec);
-            if (ec) {
-                pr3ser(-1, filt,
-                       "filter was an unacceptable regex pattern");
+    for (const auto & filt : op->filter_v) {
+        if (jsp->pr_as_json) {
+            jo2p = sgj_named_subobject_r(jsp, jop, ct_sn);
+            jap = sgj_named_subarray_r(jsp, jo2p, "typec_list");
+        }
+        for (const auto& entry : op->tc_de_v) {
+            res = fnmatch(filt.c_str(), entry.match_str_.c_str(),
+                          FNM_EXTMATCH);
+            if (0 == res) {
+                const unsigned int port_num = entry.port_num_;
+                if (port_num == UINT32_MAX) {
+                    print_err(0, "uninitialized port number for {}\n",
+                              entry.match_str_);
+                    continue;
+                }
+                a_match = true;
+                sgj_hr_pri(jsp, "{}\n", op->summ_out_m[port_num]);
+                if (op->do_long > 0) {
+                    jo3p = sgj_new_unattached_object_r(jsp);
+                    Sstring s { "port" + std::to_string(port_num) };
+                    if (entry.partner_)
+                        s += "_partner";
+                    jo4p = sgj_named_subobject_r(jsp, jo3p,
+                                                 s.c_str());
+                    list_port(entry, op, jo4p);
+                    sgj_js_nv_o(jsp, jap, nullptr, jo3p);
+                }
+            } else if (res != FNM_NOMATCH) {
+                print_err(-1, "{}: failed in fnmatch(), string: {}",
+                          __func__, filename_as_str(entry.match_str_));
                 break;
             }
-            if (jsp->pr_as_json) {
-                jo2p = sgj_named_subobject_r(jsp, jop, ct_sn);
-                jap = sgj_named_subarray_r(jsp, jo2p, "typec_list");
-            }
-            for (const auto& entry : op->tc_de_v) {
-                if (regex_match_noexc(entry.match_str_, pat, ec)) {
-                    const unsigned int port_num = entry.port_num_;
-                    if (port_num == UINT32_MAX) {
-                        print_err(0, "uninitialized port number for {}\n",
-                                  entry.match_str_);
-                        continue;
-                    }
-                    sgj_hr_pri(jsp, "{}\n", op->summ_out_m[port_num]);
-                    if (op->do_long > 0) {
-                        jo3p = sgj_new_unattached_object_r(jsp);
-                        sstring s { "port" + std::to_string(port_num) };
-                        if (entry.partner_)
-                            s += "_partner";
-                        jo4p = sgj_named_subobject_r(jsp, jo3p,
-                                                     s.c_str());
-                        list_port(entry, op, jo4p);
-                        sgj_js_nv_o(jsp, jap, nullptr, jo3p);
-                    }
-                } else if (ec) {
-                    pr3ser(-1, filt, "filter was an unacceptable regex "
-                           "pattern");
-                    break;
-                }
-            }
         }
     }
-    if (filter_for_pd) {
-        if (filter_for_port)
-            sgj_hr_pri(jsp, "\n");
-        if (jsp->pr_as_json) {
-            jo2p = sgj_named_subobject_r(jsp, jop, cupd_sn);
-            jap = sgj_named_subarray_r(jsp, jo2p, "pdo_list");
-        }
-        for (const auto& filt : op->filter_pd_v) {
-            sregex pat { filt, std::regex_constants::grep |
-                               std::regex_constants::icase };
-            for (auto&& [nm, upd_d_el] : op->upd_de_m) {
-                if (regex_match_noexc(upd_d_el.match_str_, pat, ec)) {
-                    print_err(3, "nm={}, regex match on: {}\n", nm,
-                              upd_d_el.match_str_);
-                    ec = populate_src_snk_pdos(upd_d_el, op);
-                    if (ec) {
-                        pr3ser(-1, upd_d_el.path(), "from "
-                               "populate_src_snk_pdos", ec);
-                        break;
-                    }
-                    jo3p = sgj_new_unattached_object_r(jsp);
-                    sstring s { "pd" + std::to_string(nm) };
-                    jo4p = sgj_named_subobject_r(jsp, jo3p, s.c_str());
-                    list_pd(nm, upd_d_el, op, jo4p);
-                    // sstring s { "pd" + std::to_string(nm) };
+
+    if (a_match)
+        sgj_hr_pri(jsp, "\n");
+    if (jsp->pr_as_json) {
+        jo2p = sgj_named_subobject_r(jsp, jop, cupd_sn);
+        jap = sgj_named_subarray_r(jsp, jo2p, "pdo_list");
+    }
+    for (const auto& filt : op->filter_v) {
+        for (auto&& [nm, upd_d_el] : op->upd_de_m) {
+            res = fnmatch(filt.c_str(), upd_d_el.match_str_.c_str(),
+                          FNM_EXTMATCH);
+            if (0 == res) {
+                ec = populate_src_snk_pdos(upd_d_el, op);
+                if (ec) {
+                    pr3ser(-1, upd_d_el.path(), "from "
+                           "populate_src_snk_pdos", ec);
+                    break;
+                }
+                jo3p = sgj_new_unattached_object_r(jsp);
+                Sstring s { "pd" + std::to_string(nm) };
+                jo4p = sgj_named_subobject_r(jsp, jo3p, s.c_str());
+                list_pd(nm, upd_d_el, op, jo4p);
+                // Sstring s { "pd" + std::to_string(nm) };
 // pr2serr("%s: sgj_js_nv_o(jsp, jap, s.c_str()\n", __func__);
-                    sgj_js_nv_o(jsp, jap, nullptr, jo3p);
-                } else if (ec) {
-                    pr3ser(-1, filt, "filter was an unacceptable regex "
-                           "pattern");
-                    break;
-                }
+                sgj_js_nv_o(jsp, jap, nullptr, jo3p);
+            } else if (res != FNM_NOMATCH) {
+                print_err(-1, "{}: failed in fnmatch(), string: {}",
+                          __func__, filename_as_str(upd_d_el.match_str_));
+                break;
             }
         }
-        op->caps_given = false;     // would be repeated otherwise
     }
+    op->caps_given = false;     // would be repeated otherwise
 }
 
 /* Handles short options after '-j' including a sequence of short options
@@ -2083,7 +2222,7 @@ do_filter(bool filter_for_port, bool filter_for_pd,
  * prefixed by '='. Return 0 for good, 1 for syntax error
  * and 2 for exit with no error. */
 static int
-chk_short_opts(const char sopt_ch, struct opts_t * op) noexcept
+chk_short_opts(const char sopt_ch, struct Opts_t * op) noexcept
 {
     /* only need to process short, non-argument options */
     switch (sopt_ch) {
@@ -2103,6 +2242,9 @@ chk_short_opts(const char sopt_ch, struct opts_t * op) noexcept
     case 'l':
         ++op->do_long;
         break;
+    case 'u':
+        ++op->do_usb_devs;
+        break;
     case 'v':
         op->verbose_given = true;
         ++lsucpd_verbose;
@@ -2118,14 +2260,15 @@ chk_short_opts(const char sopt_ch, struct opts_t * op) noexcept
 }
 
 static int
-cl_parse(struct opts_t * op, int argc, char * argv[])
+cl_parse(struct Opts_t * op, int argc, char * argv[])
 {
-    arr_of_ch<128> b { };
+    constexpr int N = 128;
+    Arr_of_ch<N> bb { };
 
     while (1) {
         int option_index = 0;
 
-        int c = getopt_long(argc, argv, "^cdhj::J:lp:P:r:vVy:", long_options,
+        int c = getopt_long(argc, argv, "^cdhj::J:lp:P:r:uvVy:", long_options,
                             &option_index);
         if (c == -1)
             break;
@@ -2184,6 +2327,9 @@ cl_parse(struct opts_t * op, int argc, char * argv[])
         case 'r':
             op->rdo_opt_p = optarg;
             break;
+        case 'u':
+            ++op->do_usb_devs;
+            break;
         case 'v':
             op->verbose_given = true;
             ++lsucpd_verbose;
@@ -2203,35 +2349,26 @@ cl_parse(struct opts_t * op, int argc, char * argv[])
     while (optind < argc) {
         const char * oip = argv[optind];
         auto ln = strlen(oip);
+        size_t k { };
 
         if ((ln < 2) || (ln >= 31)) {
             print_err(-1, "expect argument of the form: 'p<num>', "
                       "'p<num>[p]' or 'pd<num>', got: {}\n", oip);
             return 1;
         }
-        if (tolower(oip[0]) != 'p') {
-            print_err(-1, "FILTER arguments must start with a 'p'\n\n");
-            usage();
-            return 1;
-        }
-        if (tolower(oip[1]) == 'd')
-            op->filter_pd_v.push_back(oip);
-        else {
-            memset(b.d(), 0, 32);
-            sg_strscpy(b.d(), oip, (ln < b.sz() ? ln : b.sz()));
-            if (ln > 4) {       // also accept 'port1' or 'port3p'
-                if (0 == memcmp(b.d(), "port", 4)) {
-                    memmove(b.d() + 1, b.d() + 4, 3);
-                    ln -= 3;    // transform to 'p1' and 'p3p'
-                } else {
-                    print_err(-1, "malformed FILTER argument: {}\n", b.d());
-                    return 1;
-                }
-            }
-            if (b[ln - 1] == 'P')
-                b[ln - 1] = 'p';
-            op->filter_port_v.push_back(b.d());
-        }
+        for (/* k = 0 */; k < ln; ++k)
+            bb[k] = tolower(oip[k]);
+        bb[k] = '\0';
+
+        char c = bb[1];
+        op->filter_for_pd = (c == 'd' || c == '*' || c == '?');
+        if (0 == memcmp(bb.d(), "port", 4))
+            memmove(bb.d() + 1, bb.d() + 4, ln - 3);
+        char * cp = strstr(bb.d(), "-partner");
+        if (cp)
+            memcpy(cp, "p", 2);
+        // bw::print("arg: {}\n", bb.d());
+        op->filter_v.push_back(bb.d());
         ++optind;
     }
     return 0;
@@ -2241,14 +2378,12 @@ cl_parse(struct opts_t * op, int argc, char * argv[])
 int
 main(int argc, char * argv[])
 {
-    bool filter_for_port { false };
-    bool filter_for_pd { false };
     bool ucsi_psup_possible { false };
     int res { };
     std::error_code ec { };
     std::error_code ecc { };
-    struct opts_t opts { };
-    struct opts_t * op = &opts;
+    struct Opts_t opts { };
+    struct Opts_t * op = &opts;
     sgj_state * jsp;
     sgj_opaque_p jop { };
     sgj_opaque_p jo2p { };
@@ -2287,7 +2422,7 @@ main(int argc, char * argv[])
         return 0;
     }
     if (op->pdo_opt_p) {
-        sstring ss;
+        Sstring ss;
 
         if (do_pdo_opt(ss, op))
             return 1;
@@ -2296,18 +2431,14 @@ main(int argc, char * argv[])
             return 0;
     }
     if (op->rdo_opt_p) {
-        sstring ss;
+        Sstring ss;
 
         res = do_rdo_opt(ss, op);
         bw::print("{}", ss);
         return res;
     }
-    if (op->filter_port_v.size() > 0)
-        filter_for_port = true;
-    if (op->filter_pd_v.size() > 0) {
-        filter_for_pd = true;
+    if (op->filter_for_pd)
         ++op->do_caps;     // pd<n> holds caps
-    }
     if (op->do_data_dir) {
         if (op->do_caps == 0)
             ++op->do_caps;     // look for usb_communication_capable setting
@@ -2350,15 +2481,16 @@ main(int argc, char * argv[])
             sysfs_root = pt;
     }
     sc_pt = fs::path(sysfs_root) / class_s;
-    sc_typec_pt = sc_pt / typec_s;
-    sc_upd_pt = sc_pt / upd_sn;
-    sc_powsup_pt = sc_pt / powsup_sn;
+    sc_typec_pt = sc_pt / typec_s;  // default case: /sys/class/typec
+    sc_upd_pt = sc_pt / upd_sn;     // default: /sys/class/usb_power_delivery
+    sc_powsup_pt = sc_pt / powsup_sn; // default: /sys/class/power_supply
 
     ec = scan_for_typec_obj(ucsi_psup_possible, op);
     if (ec)
         return 1;
-    if ((op->do_caps > 0) || filter_for_pd) {
-        ec = scan_for_upd_obj(op);
+    if ((op->do_caps > 0) || op->filter_for_pd) {
+        op->build_upd_map_called = true;
+        ec = build_upd_map(op);
         if (ec)
             return 1;
     }
@@ -2367,25 +2499,17 @@ main(int argc, char * argv[])
         return res;
 
     if (jsp->pr_as_json) {
-        jo2p = sgj_named_subobject_r(jsp, jop, lsucpd_jn_sn);
-        do_my_join(op, jo2p);
+        jo2p = sgj_named_subobject_r(jsp, jop, lsucpd_internal_sn);
+        do_lsucpd_internal(op, jo2p);
     }
 
-    if (filter_for_port || filter_for_pd) {
-        do_filter(filter_for_port, filter_for_pd, op, jop);
+    if (op->filter_v.size() > 0) {
+        do_filter(op, jop);
     } else {       // no FILTER argument given
         for (auto&& [n, v] : op->summ_out_m) {
             if (lsucpd_verbose > 4)
                 sgj_hr_pri(jsp, "port={}: ", n);
             sgj_hr_pri(jsp, "{}\n", v);
-#if 0
-            if (op->do_long > 0) {
-                for (const auto& entry : op->tc_de_v) {
-                    if (n == entry.port_num_)
-                        list_port(entry, op);
-                }
-            }
-#endif
         }
         if (op->do_long > 0) {
             sgj_hr_pri(jsp, "\n");
@@ -2397,7 +2521,7 @@ main(int argc, char * argv[])
                 for (const auto& entry : op->tc_de_v) {
                     if (n == entry.port_num_) {
                         jo3p = sgj_new_unattached_object_r(jsp);
-                        sstring s { "port" + std::to_string(n) };
+                        Sstring s { "port" + std::to_string(n) };
                         if (entry.partner_)
                             s += "_partner";
                         jo4p = sgj_named_subobject_r(jsp, jo3p, s.c_str());
