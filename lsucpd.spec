@@ -55,7 +55,7 @@ fi
 
 
 %changelog
-* Wed Nov 04 2026 - dgilbert at interlog dot com
+* Wed Nov 18 2026 - dgilbert at interlog dot com
 - minor cleanups
   * lsucpd-0.92
 * Thu Dec 07 2023 - dgilbert at interlog dot com

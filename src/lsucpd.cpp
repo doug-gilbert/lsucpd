@@ -14,7 +14,7 @@
 
 // Initially this utility will assume C++20 or later
 
-static const char * const version_str = "0.92 20261104 [svn: r34]";
+static const char * const version_str = "0.92 20261118 [svn: r35]";
 
 static const char * const my_name { "lsucpd: " };
 
@@ -220,9 +220,9 @@ struct Opts_t {
     bool verbose_given;
     bool version_given;
     int do_caps;
+    int do_dev_paths;
     int do_help;
     int do_long;
-    int do_usb_devs;
     const char * pseudo_mount_point;
     const char * json_arg;  /* carries [JO] if any */
     const char * js_file; /* --js-file= argument */
@@ -266,6 +266,8 @@ static const struct option long_options[] = {
     {"capability", no_argument, 0, 'c'},
     {"capabilities", no_argument, 0, 'c'},
     {"data", no_argument, 0, 'd'},
+    {"dev-paths", no_argument, 0, 'D'},
+    {"dev_paths", no_argument, 0, 'D'},
     {"help", no_argument, 0, 'h'},
     {"json", optional_argument, 0, '^'},    /* short option is '-j' */
     {"js-file", required_argument, 0, 'J'},
@@ -279,7 +281,7 @@ static const struct option long_options[] = {
     {"pdo-source", required_argument, 0, 'P'},
     {"rdo", required_argument, 0, 'r'},
     {"sysfsroot", required_argument, 0, 'y'},
-    {"usb", no_argument, 0, 'u'},
+    {"usb", no_argument, 0, 'u'},           /* same as --dev-paths */
     {"verbose", no_argument, 0, 'v'},
     {"version", no_argument, 0, 'V'},
     {0, 0, 0, 0},
@@ -460,11 +462,11 @@ static inline Sstring filename_as_str(const fs::path & pt) noexcept
 
 
 static const char * const usage_message1 =
-    "Usage: lsucpd [--caps] [--data] [--help] [--json[=JO]] [--js-file=JFN]\n"
-    "              [--long] [--pdo-snk=SI_PDO[,IND]] "
-    "[--pdo-src=SO_PDO[,IND]]\n"
-    "              [--rdo=RDO,REF] [--sysfsroot=SPATH] [--usb] [--verbose]\n"
-    "              [--version]  [FILTER ...]\n"
+    "Usage: lsucpd [--caps] [--data] [--dev-paths] [--help] [--json[=JO]]\n"
+    "              [--js-file=JFN] [--long] [--pdo-snk=SI_PDO[,IND]]\n"
+    "              [--pdo-src=SO_PDO[,IND]] [--rdo=RDO,REF] "
+    "[--sysfsroot=SPATH]\n"
+    "              [--usb] [--verbose] [--version]  [FILTER ...]\n"
     "  where:\n"
     "    --caps|-c         list pd sink and source capabilities. Once: one "
     "line\n"
@@ -472,6 +474,10 @@ static const char * const usage_message1 =
     "three\n"
     "                      times: PDO object position 1 only (first PDO)\n"
     "    --data|-d         show USB data direction {device} <| {host}\n"
+    "    --dev-paths|-D    list USB devices connected to each Type-C "
+    "port.\n"
+    "                      Usually USB devices are connected to the partner "
+    "port\n"
     "    --help|-h         this usage information\n"
     "    --json[=JO]|-j[=JO]     output in JSON instead of plain text\n"
     "                            use --json=? for JSON help\n"
@@ -495,10 +501,7 @@ static const char * const usage_message1 =
     "                                Variable, PPS or AVS\n"
     "    --sysfsroot=SPATH|-y SPATH    set sysfs mount point to SPATH (def: "
     "/sys)\n"
-    "    --usb|-u          list USB devices connected to each Type-C "
-    "port.\n"
-    "                      Usually USB devices are connected to the partner "
-    "port\n"
+    "    --usb|-u          same as --dev-paths see above\n"
     "    --verbose|-v      increase verbosity, more debug information\n"
     "    --version|-V      output version string and exit\n\n";
 static const char * const usage_message2 =
@@ -1364,7 +1367,7 @@ list_pd(int pd_num, const Upd_dir_elem & upd_d_el,
                     sgj_hr_pri(jsp, "        raw_pdo: 0x{:08x}\n",
                                a_pdo.raw_pdo_);
                 continue;
-            } else if (op->do_caps > 2) {
+            } else if (3 == op->do_caps) {
                 if (a_pdo.pdo_ind_ > 1)
                     continue;
             }
@@ -1417,7 +1420,7 @@ list_pd(int pd_num, const Upd_dir_elem & upd_d_el,
                     sgj_hr_pri(jsp, "        raw_pdo: 0x{:08x}\n",
                                a_pdo.raw_pdo_);
                 continue;
-            } else if (op->do_caps > 2) {
+            } else if (3 == op->do_caps) {
                 if (a_pdo.pdo_ind_ > 1)
                     continue;
             }
@@ -1458,7 +1461,7 @@ list_pd(int pd_num, const Upd_dir_elem & upd_d_el,
 // back of the match_v vector. So match_v may need to be cleared before
 // this function is invoked.
 static std::error_code
-scan_for_usb_devs(const fs::path & port_de, const Sstring & filt,
+scan_for_dev_paths(const fs::path & port_de, const Sstring & filt,
                   Svector & match_v) noexcept
 {
     std::error_code ec { };
@@ -1535,9 +1538,9 @@ scan_for_typec_obj(bool & ucsi_psup_possible, struct Opts_t * op) noexcept
                                                          de.is_host_);
                 }
             }
-            if (op->do_usb_devs > 0) {
+            if (op->do_dev_paths > 0) {
                 de.tc_usb_dev_v.clear();
-                scan_for_usb_devs(de, "+([0-9])-+([0-9])*", de.tc_usb_dev_v);
+                scan_for_dev_paths(de, "+([0-9])-+([0-9])*", de.tc_usb_dev_v);
             }
             fs::path pt { it_pt / upd_sn };
 
@@ -1976,13 +1979,13 @@ usb_dev_list(struct Tc_dir_elem * elemp, SafePrintfWrapper<N> & spw_a,
 
         if (spw_a.full())
             break;
-        if (op->do_usb_devs > 1) {
+        if (op->do_dev_paths > 1) {
             Svector devs_2lev_v;
 
-            ecc = scan_for_usb_devs(pt, "+([0-9])-+([0-9]).+([0-9])*",
+            ecc = scan_for_dev_paths(pt, "+([0-9])-+([0-9]).+([0-9])*",
                                     devs_2lev_v);
             if (ecc)
-                pr3ser(1, pt, "scan_for_usb_devs() failed", ecc);
+                pr3ser(1, pt, "scan_for_dev_paths() failed", ecc);
             if (devs_2lev_v.size() > 0) {
                 Sstring ppad { "          " };
 
@@ -2243,7 +2246,7 @@ chk_short_opts(const char sopt_ch, struct Opts_t * op) noexcept
         ++op->do_long;
         break;
     case 'u':
-        ++op->do_usb_devs;
+        ++op->do_dev_paths;
         break;
     case 'v':
         op->verbose_given = true;
@@ -2268,7 +2271,7 @@ cl_parse(struct Opts_t * op, int argc, char * argv[])
     while (1) {
         int option_index = 0;
 
-        int c = getopt_long(argc, argv, "^cdhj::J:lp:P:r:uvVy:", long_options,
+        int c = getopt_long(argc, argv, "^cdDhj::J:lp:P:r:uvVy:", long_options,
                             &option_index);
         if (c == -1)
             break;
@@ -2280,6 +2283,9 @@ cl_parse(struct Opts_t * op, int argc, char * argv[])
             break;
         case 'd':
             op->do_data_dir = true;
+            break;
+        case 'D':
+            ++op->do_dev_paths;
             break;
         case 'h':
             ++op->do_help;
@@ -2328,7 +2334,7 @@ cl_parse(struct Opts_t * op, int argc, char * argv[])
             op->rdo_opt_p = optarg;
             break;
         case 'u':
-            ++op->do_usb_devs;
+            ++op->do_dev_paths;
             break;
         case 'v':
             op->verbose_given = true;
@@ -2437,11 +2443,11 @@ main(int argc, char * argv[])
         bw::print("{}", ss);
         return res;
     }
-    if (op->filter_for_pd)
-        ++op->do_caps;     // pd<n> holds caps
-    if (op->do_data_dir) {
-        if (op->do_caps == 0)
-            ++op->do_caps;     // look for usb_communication_capable setting
+    if (op->filter_for_pd || op->do_data_dir) {
+        // if filter_for_pd probably want do_caps set
+        // if do_data_dir look for usb_communication_capable setting
+        if (0 == op->do_caps)
+            ++op->do_caps;
     }
 
     jsp = &op->json_st;

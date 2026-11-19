@@ -1,10 +1,11 @@
-.TH LSUCPD "8" "2026-11-04" "lsucpd\-0.92" LSUCPD
+.TH LSUCPD "8" "2026-11-18" "lsucpd\-0.92" LSUCPD
 .SH NAME
 lsucpd \- list USB\-C Power Delivery objects
 .SH SYNOPSIS
 .B lsucpd
-[\fI\-\-caps\fR] [\fI\-\-data\fR] [\fI\-\-help\fR] [\fI\-\-json[=JO]\fR]
-[\fI\-\-js\-file=JFN\fR] [\fI\-\-long\fR] [\fI\-\-pdo\-snk=SI_PDO[,IND]\fR]
+[\fI\-\-caps\fR] [\fI\-\-data\fR] [\fI\-\-dev\-paths\fR] [\fI\-\-help\fR]
+[\fI\-\-json[=JO]\fR] [\fI\-\-js\-file=JFN\fR] [\fI\-\-long\fR]
+[\fI\-\-pdo\-snk=SI_PDO[,IND]\fR]
 [\fI\-\-pdo\-src=SO_PDO[,IND]\fR] [\fI\-\-rdo=RDO,REF\fR]
 [\fI\-\-sysfsroot=PATH\fR] [\fI\-\-usb\fR] [\fI\-\-verbose\fR]
 [\fI\-\-version\fR] [\fIFILTER ... \fR]
@@ -157,12 +158,17 @@ usually be for 3 Amps. What is more interesting is all the other settings
 in the first PDO which are displayed as name='value' pairs. Their
 definitions can be found in the PD specification, typically with the
 underscore in the name replaced by a space and the first letter capitalized.
+Also the naming gives a hint of what the commonly used PD abbreviation will
+be; for example DRP for dual_role_power and DRD for dual_role_data.
 .br
 If this option is given three times, the previous output is pruned to
 only show the capabilities of the first PDO. This is done because only the
 first PDO has settings other than those relating to voltage, current and/or
 power. Those settings (e.g. dual_role_data and dual_role_power) apply to
 all the higher number PDOs.
+.br
+If this option is given four or more times, it is processed the same way as
+if it was given twice.
 .br
 In the standard power range (SPR) the maximum number of PDOs is 7. If no
 source or sink PDOs are given, then a sink PDO of 5 Volts (Vsafe5v) is
@@ -197,6 +203,34 @@ setting in there called "USB Communications Capable" and it is zero
 indicating that pd24 (port0\-partner) does not use D+, D\- nor any of the
 superspeed lines. Many if not most USB\-C power adapters will have that
 bit cleared, so talking about USB host and device is not relevant.
+.TP
+\fB\-D\fR, \fB\-\-dev\-paths\fR
+search the sysfs directories associated with each port<n> and
+port<n>\-partner for USB devices (e.g. a USB memory stick). USB devices
+appear as a directory of the form <b>\-<p> where <b> is the USB bus
+number (of the "root" hub). And <p> is the (downstream) port number of
+that root hub to which the USB device is connected. On most desktops
+and laptops that port is connected to a USB\-C port. For USB\-2 speeds ( <=
+480 Mbps) the port uses the D+ and D\- wires on the USB\-C connector. For
+USB\-3 and USB\-4 speeds (>= 5 Gbps) it uses either the Tx1+,Tx1\-,
+Rx1+,Rx1\- lines or Tx2+,Tx2\-, Rx2+,Rx2\- lines or both, on a USB\-C
+connector. Tx1+,Tx1\- and Tx2+,Tx2\- are two "tx" lanes; ditto for the
+two "rx" lanes.
+.br 
+For each discovered USB device an indented summary line starting
+with 'p<n>:' or 'p<n>p:' is output like this:
+    p1p: 3\-5  0781:55ab  speed,tx/rx_lanes=5000,1/1   SanDisk 3.2Gen1
+.br       
+This can be interpreted as a USB device (product: 'SanDisk 3.2Gen1') has
+been found on USB\-C connector 1's partner connector on USB root hub bus 3,
+port 5. The USB device's identifier is: idVendor:idProduct (i.e. 0781:55ab).
+Its speed is 5000 Mbps (5 Gbps) and it uses one Tx lane and one Rx lane.
+There are many more USB device attributes that can be viewed with lsusb
+or usbview.
+.br 
+If this option is used twice, a check is made on every discovered USB device
+for a downstream hub. If found any attached USB devices (to that downstream
+hub) is listed with a further indent.
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 Output the usage message and exit.
@@ -284,31 +318,7 @@ assumes sysfs is mounted at PATH instead of the default '/sys' . If this
 option is given PATH should be an absolute path (i.e. start with '/').
 .TP
 \fB\-u\fR, \fB\-\-usb\fR
-search the directories associated with each port<n> and port<n>\-partner for
-USB devices (e.g. a USB memory stick). USB devices appear as a directory of
-the form <b>\-<p> where <b> is the USB bus number (of the "root" hub).
-And <p> is the (downstream) port number of that root hub. On most desktops
-and laptops that port is connected to a USB\-C port. For USB\-2 speeds ( <=
-480 Mbps) the port uses the D+ and D\- pins on the USB\-C connector. For
-USB\-3 and USB\-4 speeds (>= 5 Gbps) it uses either the Tx1+,Tx1\-,
-Rx1+,Rx1\- lines or Tx2+,Tx2\-, Rx2+,Rx2\- lines or both, on a USB\-C
-connector. Tx1+,Tx1\- and Tx2+,Tx2\- are two "tx" lanes; ditto for the
-two "rx" lanes.
-.br
-For each discovered USB device an indented summary line starting
-with 'p<n>:' or 'p<n>p:' is output like this:
-    p1p: 3\-5  0781:55ab  speed,tx/rx_lanes=5000,1/1   SanDisk 3.2Gen1
-.br
-This can be interpreted as a USB device (product: 'SanDisk 3.2Gen1') has
-been found on USB\-C connector 1's partner connector on USB root hub bus 3,
-port 5. The USB device's identifier is: idVendor:idProduct (i.e. 0781:55ab).
-Its speed is 5000 Mbps (5 Gbps) and it uses one Tx lane and one Rx lane.
-There are many more USB device attributes that can be viewed with lsusb
-or usbview.
-.br
-If this option is used twice, a check is made on every discovered USB device
-for a downstream hub. If found any attached USB devices (to that downstream
-hub) are listed, each with a greater indent.
+same as the \fI\-\-dev\-paths\fR options, see above.
 .TP
 \fB\-v\fR, \fB\-\-verbose\fR
 outputs directory names where information is found. Use multiple times for
@@ -551,8 +561,8 @@ warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 .B lsusb(8)
 .B lsblk(8)
 .B lsscsi(lsscsi)
-.B lsscsi(ls_name_value)
+.B ls_name_value(lsscsi)
 .B clone_pseudo_fs(clone_pseudo_fs, github)
-.B lstypec(github libtypec)
+.B lstypec(libtypec, github)
 .B usbview(8)
 .B glob(7)

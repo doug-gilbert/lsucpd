@@ -1,9 +1,10 @@
 Linux utility for listing USB C Power Delivery information.
 
-Changelog for pre-release lsucpd-0.92 [20261104] [svn: r34]
-  - add --usb option to search for USB devices connected to
-    a Type C port or its partner. Output 1 indented line for
-    each device found; used twice: check downstream hub as well
+Changelog for pre-release lsucpd-0.92 [20261118] [svn: r35]
+  - add --dev-paths option to search for USB devices connected
+    to a Type C port or its partner. Output 1 indented line for
+    each device found; used twice: check downstream hub as
+    well. Now --dev-paths and --usb options have some action.
   - change COPYING file to BSD 2 clause license
   - import sg_json.[hc] and sg_pr2serr.[hc] from sg3_utils
     svn revision 1127
